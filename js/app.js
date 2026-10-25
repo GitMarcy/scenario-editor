@@ -350,8 +350,19 @@ function updateCaret() {
 
 function updateToolbar() {
   const type = doc?.blocks[cur]?.type;
-  $$('#type-buttons button').forEach(b => b.classList.toggle('on', b.dataset.type === type));
-  $('#type-buttons').classList.toggle('need', !type);
+  const types = $('#type-buttons');
+  let changed = false;
+  for (const b of types.children) {
+    if (b.classList.contains('on') !== (b.dataset.type === type)) changed = true;
+    b.classList.toggle('on', b.dataset.type === type);
+  }
+  types.classList.toggle('need', !type);
+  // iPhoneでは色を変えたボタンの文字の上下に前の色が線のように残るので、まるごと描き直させる
+  // （透明度を一瞬だけ変えると、次のフレームで全体が塗り直される）
+  if (changed) {
+    types.style.opacity = '.99';
+    requestAnimationFrame(() => requestAnimationFrame(() => { types.style.opacity = ''; }));
+  }
 }
 
 function focusBlock(i, caret) {
