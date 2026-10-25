@@ -165,6 +165,7 @@ a.btn { display: inline-block; text-decoration: none; }
 /* ツールバー */
 .toolbar {
   position: sticky; top: 0; z-index: 10;
+  transform: translateZ(0); /* ツールバーをまとめて描かせ、iPhoneの描き残しを防ぐ */
   margin: -16px -16px 0; padding: 8px 16px 6px;
   background: var(--bg); border-bottom: 1px solid var(--line);
 }
@@ -181,10 +182,14 @@ a.btn { display: inline-block; text-decoration: none; }
 .toolbar .chips button { border-color: var(--badge-serifu); color: var(--badge-serifu); }
 
 /* 種類の選択 */
-.types { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+/* 角の丸めは overflow: hidden で切り抜かず、両端のボタンに付ける。
+   切り抜きの中で色が変わると、iPhoneではボタンに横線の描き残しが出るため */
+.types { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; }
 .toolbar .types button {
   border: 0; border-radius: 0; padding: 7px 13px; font-family: var(--ui-font); font-weight: 600;
 }
+.toolbar .types button:first-child { border-radius: 8px 0 0 8px; }
+.toolbar .types button:last-child { border-radius: 0 8px 8px 0; }
 .toolbar .types button + button { border-left: 1px solid var(--line); }
 .toolbar .types button[data-type="hashira"].on { background: var(--badge-hashira); color: #fff; }
 .toolbar .types button[data-type="togaki"].on { background: var(--badge-togaki); color: #fff; }
