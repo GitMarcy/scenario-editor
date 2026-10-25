@@ -13,7 +13,6 @@ const fields = {
   title: $('#cover-title'),
   author: $('#cover-author'),
   characters: $('#characters'),
-  body: $('#body-text'),
   back: $('#back-text'),
 };
 
@@ -41,6 +40,7 @@ function showView(name) {
 // ---------- 保存 ----------
 
 function scheduleSave() {
+  if (!restoring) scheduleHistory();
   dirty = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, 800);
@@ -133,18 +133,29 @@ async function openScript(id, tab) {
   if (!d) return showList();
   doc = d;
   dirty = false;
+  if (!Array.isArray(doc.blocks)) {
+    doc.blocks = normalizeBlocks(doc);
+    delete doc.body;
+    scheduleSave();
+  }
   localStorage.setItem('lastOpened', id);
+  cur = 0;
+  fillEditor();
+  resetHistory();
+  showView('edit');
+  switchTab(tab || localStorage.getItem('tab') || 'body');
+}
+
+function fillEditor() {
   fields.subtitle.value = doc.cover.subtitle;
   fields.title.value = doc.cover.title;
   fields.author.value = doc.cover.author;
   fields.characters.value = doc.characters;
-  fields.body.value = doc.body;
   fields.back.value = doc.backCover.text;
   updateTitle();
-  updateBodyDecor();
+  renderBlocks();
+  updateToolbar();
   updateChips();
-  showView('edit');
-  switchTab(tab || localStorage.getItem('tab') || 'body');
 }
 
 function updateTitle() {
@@ -158,8 +169,8 @@ function switchTab(name) {
   localStorage.setItem('tab', name);
   $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   $$('.panel').forEach(p => { p.hidden = p.dataset.panel !== name; });
-  if (name === 'body') autogrow();
   if (name === 'preview') renderPreview();
+  setSelecting(false);
   window.scrollTo(0, 0);
 }
 
@@ -170,41 +181,322 @@ fields.title.oninput = () => { doc.cover.title = fields.title.value; updateTitle
 fields.author.oninput = () => { doc.cover.author = fields.author.value; updateTitle(); scheduleSave(); };
 fields.characters.oninput = () => { doc.characters = fields.characters.value; updateChips(); scheduleSave(); };
 fields.back.oninput = () => { doc.backCover.text = fields.back.value; scheduleSave(); };
-fields.body.oninput = () => {
-  doc.body = fields.body.value;
-  updateBodyDecor();
+
+// ---------- 本文エディタ（1段落＝1ブロック） ----------
+
+const LABEL = { hashira: '柱', togaki: 'ト', serifu: 'セ' };
+const blocksEl = $('#body-blocks');
+let cur = 0;      // 編集中のブロック
+let layout = { lines: [], rows: [] }; // rows[i] = ブロックiの行の通し番号
+
+function blockEl(i) { return blocksEl.children[i]; }
+function blockTa(i) { return blockEl(i)?.querySelector('textarea'); }
+function indexOf(node) { return [...blocksEl.children].indexOf(node.closest('.blk')); }
+
+function makeBlockEl(b) {
+  const el = document.createElement('div');
+  el.className = 'blk';
+  el.innerHTML = `<button class="badge" tabindex="-1"><span></span></button>
+    <div class="cells"><div class="render" aria-hidden="true"></div>
+    <textarea rows="1" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div>
+    <div class="marks" aria-hidden="true"></div>`;
+  el.querySelector('textarea').value = b.text;
+  setBlockType(el, b.type);
+  return el;
+}
+
+function setBlockType(el, type) {
+  el.className = `blk t-${type || 'none'}`;
+  el.querySelector('.badge span').textContent = LABEL[type] || '？';
+  el.querySelector('textarea').placeholder = type ? '' : '↑ 柱・ト書き・セリフを選んでください';
+}
+
+function renderBlocks() {
+  blocksEl.replaceChildren(...doc.blocks.map(makeBlockEl));
+  refreshLayout(true);
+}
+
+// 組版し直して、原稿用紙どおりの表示・ページ区切り・統計を更新する
+function refreshLayout(all = false, changed = -1) {
+  const lines = layoutBody(doc.blocks);
+  const rows = doc.blocks.map(() => []);
+  lines.forEach((l, g) => rows[l.block].push(g));
+  layout = { lines, rows };
+
+  rows.forEach((gs, i) => {
+    const el = blockEl(i);
+    el.classList.toggle('gap', gs.length > 0 && lines[gs[0]].type === 'blank');
+    if (all || i === changed) {
+      el.querySelector('.render').innerHTML = gs.map(g =>
+        `<div style="padding-left:${lines[g].indent}em">${escapeHtml(lines[g].chars.join(''))}</div>`).join('');
+    }
+    // 半ページ（10行）ごとの区切り。偶数ノンブルの次からA4の次の紙
+    const marks = gs.filter(g => g % LINES_PER_HALF === 0).map(g => {
+      const n = g / LINES_PER_HALF + 1;
+      return `<div class="pmark${n % 2 ? ' sheet' : ''}" style="top:calc(${lines[g].row} * var(--lh))"><span>P${n}</span></div>`;
+    }).join('');
+    if (el.dataset.marks !== marks) {
+      el.dataset.marks = marks;
+      el.querySelector('.marks').innerHTML = marks;
+    }
+  });
+
+  const n = lines.length;
+  const halves = Math.max(1, Math.ceil(n / LINES_PER_HALF));
+  $('#body-stats').textContent = `本文 ${n}行 ／ ノンブル ${halves}（A4 ${Math.ceil(halves / 2)}枚・20×20換算 ${(n / 20).toFixed(1)}枚）`;
+  updateCaret();
+}
+
+// 入力中のブロックは、ブラウザの折り返しが組版より1行多くなることがあるので高さを合わせる
+function fitBlock(i) {
+  const el = blockEl(i);
+  const ta = blockTa(i);
+  if (!el || !ta) return;
+  ta.style.height = 'auto';
+  const gap = el.classList.contains('gap') ? parseFloat(getComputedStyle(el).lineHeight) : 0;
+  el.querySelector('.cells').style.minHeight = ta.scrollHeight + gap + 'px';
+  ta.style.height = '';
+}
+
+function updateCaret() {
+  const { lines, rows } = layout;
+  const ta = blockTa(cur);
+  const total = Math.max(1, Math.ceil(lines.length / LINES_PER_HALF));
+  let g = lines.findIndex(l => l.block >= cur);
+  if (g < 0) g = lines.length;
+  const gs = rows[cur] || [];
+  if (ta && gs.length) {
+    const c = ta.selectionStart;
+    let acc = 0;
+    g = gs[gs.length - 1];
+    for (const k of gs) {
+      acc += lines[k].chars.length;
+      if (c < acc) { g = k; break; }
+    }
+  }
+  $('#caret-pos').textContent = `P${Math.floor(g / LINES_PER_HALF) + 1}・${g % LINES_PER_HALF + 1}行目 ／ 全${total}P`;
+}
+
+function updateToolbar() {
+  const type = doc?.blocks[cur]?.type;
+  $$('#type-buttons button').forEach(b => b.classList.toggle('on', b.dataset.type === type));
+  $('#type-buttons').classList.toggle('need', !type);
+}
+
+function focusBlock(i, caret) {
+  const ta = blockTa(i);
+  if (!ta) return;
+  ta.focus();
+  const c = caret ?? ta.value.length;
+  ta.setSelectionRange(c, c);
+}
+
+function blockChanged(i) {
+  refreshLayout(false, i);
+  fitBlock(i);
+  updateToolbar();
   clearTimeout(updateChips.timer);
   updateChips.timer = setTimeout(updateChips, 1500);
   scheduleSave();
-};
-
-// ---------- 本文エディタ：種類の目印と統計 ----------
-
-const LABEL = { hashira: '柱', togaki: 'ト', serifu: 'セ', blank: '' };
-
-function updateBodyDecor() {
-  const lines = fields.body.value.split('\n');
-  $('#body-backdrop').innerHTML = lines.map(l => {
-    const t = classifyLine(l);
-    return `<div class="ln t-${t}" data-label="${LABEL[t]}">${escapeHtml(l) || '&nbsp;'}</div>`;
-  }).join('');
-  autogrow();
-  const n = layoutBody(fields.body.value).length;
-  const halves = Math.max(1, Math.ceil(n / LINES_PER_HALF));
-  $('#body-stats').textContent = `本文 ${n}行 ／ ノンブル ${halves}（A4 ${Math.ceil(halves / 2)}枚・20×20換算 ${(n / 20).toFixed(1)}枚）`;
 }
 
-function autogrow() {
-  const ta = fields.body;
-  ta.style.height = 'auto';
-  ta.style.height = Math.max(ta.scrollHeight, 240) + 'px';
+// ブロックiの後ろに新しいブロックを入れる
+function insertBlocks(i, list) {
+  doc.blocks.splice(i + 1, 0, ...list);
+  const ref = blockEl(i + 1);
+  for (const b of list) blocksEl.insertBefore(makeBlockEl(b), ref);
+  refreshLayout(true);
+  scheduleSave();
 }
+
+function removeBlock(i) {
+  doc.blocks.splice(i, 1);
+  blockEl(i).remove();
+}
+
+function setType(i, type) {
+  const b = doc.blocks[i];
+  if (!b) return;
+  delete blockEl(i).dataset.auto; // ボタンで選んだ種類は自動判定で変えない
+  if (b.type === type) return;
+  const ta = blockTa(i);
+  let caret = ta.selectionStart;
+  if ((b.type === 'hashira' && HASHIRA_RE.test(b.text)) || (b.type === 'serifu' && LEAD_SPACE_RE.test(b.text))) {
+    b.text = b.text.slice(1);
+    caret = Math.max(0, caret - 1);
+  }
+  if (type === 'hashira' && !HASHIRA_RE.test(b.text)) {
+    b.text = '○' + b.text;
+    caret++;
+  }
+  b.type = type;
+  ta.value = b.text;
+  setBlockType(blockEl(i), type);
+  ta.setSelectionRange(caret, caret);
+  blockChanged(i);
+}
+
+// 書き出しから種類を判定する：「○」で柱、空白3つでト書き、名前「でセリフ。
+// 種類が未選択か、改行で自動的にト書きになった段落だけが対象
+function detectType(i, composing) {
+  const b = doc.blocks[i];
+  const el = blockEl(i);
+  if (b.type && !(b.type === 'togaki' && el.dataset.auto)) return;
+  const ta = blockTa(i);
+  let type = null;
+  if (HASHIRA_RE.test(b.text)) type = 'hashira';
+  else if (SERIFU_RE.test(b.text)) type = 'serifu';
+  else if (!b.type && !composing && /^[ 　]{3}/.test(b.text)) {
+    // 字下げはト書きが自動でするので、入力した空白3つは消す
+    const caret = Math.max(0, ta.selectionStart - 3);
+    b.text = b.text.slice(3);
+    ta.value = b.text;
+    ta.setSelectionRange(caret, caret);
+    type = 'togaki';
+  }
+  if (!type || type === b.type) return;
+  b.type = type;
+  setBlockType(el, type);
+  delete el.dataset.auto;
+}
+
+blocksEl.addEventListener('focusin', e => {
+  if (e.target.tagName !== 'TEXTAREA') return;
+  cur = indexOf(e.target);
+  fitBlock(cur);
+  updateToolbar();
+  updateCaret();
+});
+blocksEl.addEventListener('focusout', e => {
+  if (e.target.tagName === 'TEXTAREA') e.target.closest('.cells').style.minHeight = '';
+});
+document.addEventListener('selectionchange', () => {
+  if (document.activeElement?.closest?.('#body-blocks')) updateCaret();
+});
+
+// 余白やバッジを押したら、そのブロック（なければ最後のブロック）を編集
+blocksEl.addEventListener('click', e => {
+  if (selecting) {
+    if (dragged) dragged = false;
+    else selectBlock(e.target.closest('.blk'));
+    return;
+  }
+  if (e.target.tagName === 'TEXTAREA') return;
+  const el = e.target.closest('.blk');
+  focusBlock(el ? indexOf(el) : doc.blocks.length - 1);
+});
+
+// 改行した次の段落の種類。柱・ト書きの次はト書き、セリフの続きはセリフ、
+// セリフを「」」で閉じたあとは種類を選び直す。text は改行位置より前の文字
+function nextType(type, text) {
+  if (type === 'hashira' || type === 'togaki') return 'togaki';
+  if (type === 'serifu' && /」[\s　]*$/.test(text)) return null;
+  return type;
+}
+
+// セリフの続きは行頭に全角スペースを入れておき、消したら種類を選ぶ前に戻す
+const SERIFU_MARK = '　';
+const LEAD_SPACE_RE = /^[\s　]/;
+
+// 改行キーで段落を分ける（変換の確定では beforeinput の改行は来ない）
+blocksEl.addEventListener('beforeinput', e => {
+  if (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return;
+  e.preventDefault();
+  const i = indexOf(e.target);
+  const b = doc.blocks[i];
+  const ta = e.target;
+  if (!b.type && !b.text.trim()) return;
+  const after = b.text.slice(ta.selectionEnd);
+  b.text = b.text.slice(0, ta.selectionStart);
+  ta.value = b.text;
+  blockChanged(i);
+  const type = nextType(b.type, b.text);
+  const mark = type === 'serifu' ? SERIFU_MARK : '';
+  insertBlocks(i, [{ type, text: mark + after.replace(/^[\s　]+/, '') }]);
+  if (type) blockEl(i + 1).dataset.auto = '1';
+  focusBlock(i + 1, mark.length);
+});
+
+blocksEl.addEventListener('input', e => {
+  const i = indexOf(e.target);
+  const b = doc.blocks[i];
+  const ta = e.target;
+  const [first, ...rest] = ta.value.split('\n');
+  const hadMark = LEAD_SPACE_RE.test(b.text);
+  b.text = first;
+  // 柱の「○」やセリフの続きの行頭スペースを消したら、種類を選ぶ前に戻る
+  if ((b.type === 'hashira' && !HASHIRA_RE.test(b.text)) ||
+      (b.type === 'serifu' && hadMark && !LEAD_SPACE_RE.test(b.text))) {
+    b.type = null;
+    setBlockType(blockEl(i), null);
+  }
+  detectType(i, e.isComposing);
+  if (!rest.length) return blockChanged(i);
+
+  // 貼り付けなどで複数行が入ったら、行ごとにブロックへ分ける（種類は推定）
+  const caretInRest = ta.value.length - ta.selectionEnd;
+  ta.value = first;
+  blockChanged(i);
+  const added = textToBlocks(rest.join('\n'));
+  if (!added.length) {
+    const type = nextType(b.type, b.text);
+    added.push({ type, text: type === 'serifu' ? SERIFU_MARK : '' });
+  }
+  insertBlocks(i, added);
+  const last = i + added.length;
+  focusBlock(last, Math.max(0, doc.blocks[last].text.length - caretInRest));
+});
+
+blocksEl.addEventListener('keydown', e => {
+  if (e.isComposing || e.keyCode === 229) return;
+  const ta = e.target;
+  if (ta.tagName !== 'TEXTAREA') return;
+  const i = indexOf(ta);
+  const b = doc.blocks[i];
+  const s = ta.selectionStart;
+  const collapsed = s === ta.selectionEnd;
+
+  if (e.key === 'Backspace' && collapsed && s === 0) {
+    if (b.type && !b.text) {
+      // 空の段落で後退すると、種類を選ぶ前に戻る
+      e.preventDefault();
+      b.type = null;
+      setBlockType(blockEl(i), null);
+      blockChanged(i);
+    } else if (i > 0) {
+      // 前の段落とつなげる
+      e.preventDefault();
+      const prev = doc.blocks[i - 1];
+      const caret = prev.text.length;
+      prev.text += b.text;
+      blockTa(i - 1).value = prev.text;
+      removeBlock(i);
+      focusBlock(i - 1, caret);
+      blockChanged(i - 1);
+      refreshLayout(true);
+    }
+  } else if (e.key === 'Delete' && collapsed && s === ta.value.length && i < doc.blocks.length - 1) {
+    e.preventDefault();
+    b.text += doc.blocks[i + 1].text;
+    ta.value = b.text;
+    removeBlock(i + 1);
+    ta.setSelectionRange(s, s);
+    blockChanged(i);
+    refreshLayout(true);
+  } else if ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') && collapsed && s === 0 && i > 0) {
+    e.preventDefault();
+    focusBlock(i - 1);
+  } else if ((e.key === 'ArrowDown' || e.key === 'ArrowRight') && collapsed && s === ta.value.length && i < doc.blocks.length - 1) {
+    e.preventDefault();
+    focusBlock(i + 1, 0);
+  }
+});
 
 // ---------- ツールバー ----------
 
 function updateChips() {
   if (!doc) return;
-  const names = [...new Set([...serifuNames(doc.body), ...characterNames(doc.characters)])];
+  const names = [...new Set([...serifuNames(doc.blocks), ...characterNames(doc.characters)])];
   $('#name-chips').replaceChildren(...names.map(n => {
     const b = document.createElement('button');
     b.dataset.insert = 'name';
@@ -215,26 +507,12 @@ function updateChips() {
 }
 
 function insertText(text, caretOffset = text.length) {
-  const ta = fields.body;
+  const ta = blockTa(cur);
+  if (!ta) return;
   const start = ta.selectionStart;
   ta.setRangeText(text, start, ta.selectionEnd, 'end');
   ta.selectionStart = ta.selectionEnd = start + caretOffset;
-  ta.dispatchEvent(new Event('input'));
-}
-
-function atLineStart() {
-  const ta = fields.body;
-  const before = ta.value.slice(0, ta.selectionStart);
-  return before === '' || before.endsWith('\n');
-}
-
-function currentLineEmpty() {
-  const ta = fields.body;
-  const v = ta.value;
-  const s = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
-  let e = v.indexOf('\n', ta.selectionStart);
-  if (e < 0) e = v.length;
-  return v.slice(s, e).trim() === '';
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // ボタンを押してもキーボードが閉じないように、フォーカスを奪わない
@@ -243,16 +521,271 @@ $('#toolbar').addEventListener('pointerdown', e => {
 });
 $('#toolbar').addEventListener('click', e => {
   const b = e.target.closest('button');
-  if (!b) return;
+  if (!b || !doc || !(b.dataset.type || b.dataset.insert)) return;
+  if (!blockTa(cur)) cur = doc.blocks.length - 1;
+  if (document.activeElement !== blockTa(cur)) focusBlock(cur);
+  if (b.dataset.type) return setType(cur, b.dataset.type);
+
   const kind = b.dataset.insert;
-  const nl = atLineStart() || currentLineEmpty() ? '' : '\n';
-  if (kind === 'hashira') insertText(nl + '○');
-  else if (kind === 'kakko') insertText('「」', 1);
+  if (kind === 'kakko') insertText('「」', 1);
   else if (kind === 'name') {
-    const s = nl + b.dataset.name + '「」';
-    insertText(s, s.length - 1);
-  } else insertText(kind);
-  fields.body.focus();
+    const s = b.dataset.name + '「」';
+    startBlock('serifu', s, s.length - 1);
+  } else if (kind === 'batsu') startBlock('togaki', '　×　　　×　　　×');
+  else insertText(kind);
+});
+
+// 空の段落ならそこに、書きかけの段落なら次の段落に、種類と書き出しを入れる
+function startBlock(type, text, caret = text.length) {
+  let i = cur;
+  if (doc.blocks[i].text.trim()) {
+    insertBlocks(i, [{ type, text: '' }]);
+    i++;
+    focusBlock(i);
+  }
+  setType(i, type);
+  doc.blocks[i].text = '';
+  blockTa(i).value = '';
+  insertText(text, caret);
+}
+
+// ---------- 段落をまとめて削除 ----------
+
+let selecting = false;
+let selected = new Set();
+let anchor = null;
+
+function setSelecting(on) {
+  selecting = on;
+  selected = new Set();
+  anchor = null;
+  blocksEl.classList.toggle('selecting', on);
+  $('#toolbar').classList.toggle('selecting', on);
+  if (on) document.activeElement?.blur();
+  updateSelection();
+}
+
+// 1つ目のタップで選び、2つ目のタップでその間をまとめて選ぶ。あとは1つずつ選択・解除
+function selectBlock(el) {
+  if (!el) return;
+  const i = indexOf(el);
+  if (selected.size === 1 && anchor !== null && anchor !== i) {
+    for (let k = Math.min(anchor, i); k <= Math.max(anchor, i); k++) selected.add(k);
+    anchor = null;
+  } else if (selected.has(i)) {
+    selected.delete(i);
+  } else {
+    selected.add(i);
+    if (selected.size === 1) anchor = i;
+  }
+  updateSelection();
+}
+
+function updateSelection() {
+  [...blocksEl.children].forEach((el, i) => el.classList.toggle('sel', selected.has(i)));
+  $('#select-count').textContent = selected.size
+    ? `${selected.size}段落`
+    : 'タップ・なぞって選択';
+  $('#btn-select-clear').disabled = !selected.size;
+  $('#btn-delete-blocks').disabled = !selected.size;
+  $('#btn-move-up').disabled = !selected.size || selected.has(0);
+  $('#btn-move-down').disabled = !selected.size || selected.has(doc.blocks.length - 1);
+}
+
+// なぞって選ぶ。なぞり始める前の選択に、なぞった範囲を足す。
+// 画面の上下の端まで来たら自動でスクロールする
+let drag = null;
+let dragged = false; // なぞり終わりの click をタップとして扱わない
+
+function blockAtY(y) {
+  const els = [...blocksEl.children];
+  for (let i = 0; i < els.length; i++) {
+    const r = els[i].getBoundingClientRect();
+    if (y < r.bottom || i === els.length - 1) return y < r.top && i === 0 ? 0 : i;
+  }
+  return -1;
+}
+
+function dragTo(y) {
+  const i = blockAtY(y);
+  if (i < 0) return;
+  if (i !== drag.start) drag.moved = true;
+  if (!drag.moved) return;
+  selected = new Set(drag.base);
+  for (let k = Math.min(drag.start, i); k <= Math.max(drag.start, i); k++) selected.add(k);
+  anchor = null;
+  updateSelection();
+}
+
+function autoScroll() {
+  if (!drag) return;
+  const top = $('#toolbar').getBoundingClientRect().bottom + 40;
+  const bottom = $('.tabs').getBoundingClientRect().top - 40;
+  const dy = drag.y < top ? -(top - drag.y) / 3 : drag.y > bottom ? (drag.y - bottom) / 3 : 0;
+  if (dy) {
+    window.scrollBy(0, Math.max(-20, Math.min(20, dy)));
+    dragTo(drag.y);
+  }
+  drag.raf = requestAnimationFrame(autoScroll);
+}
+
+blocksEl.addEventListener('pointerdown', e => {
+  if (!selecting) return;
+  dragged = false;
+  const el = e.target.closest('.blk');
+  if (!el) return;
+  drag = { start: indexOf(el), base: new Set(selected), moved: false, y: e.clientY };
+  drag.raf = requestAnimationFrame(autoScroll);
+});
+blocksEl.addEventListener('pointermove', e => {
+  if (!drag) return;
+  drag.y = e.clientY;
+  dragTo(e.clientY);
+});
+function endDrag() {
+  if (!drag) return;
+  cancelAnimationFrame(drag.raf);
+  dragged = drag.moved;
+  drag = null;
+}
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+// 選んだ段落を1つ上（dir=-1）か下（dir=1）へ動かす。離れた段落を選んでいても、それぞれ1つずつ動く
+function moveSelected(dir) {
+  const order = [...selected].sort((a, b) => (a - b) * -dir);
+  if (order.some(i => i + dir < 0 || i + dir >= doc.blocks.length)) return;
+  const next = new Set();
+  for (const i of order) {
+    [doc.blocks[i], doc.blocks[i + dir]] = [doc.blocks[i + dir], doc.blocks[i]];
+    next.add(i + dir);
+  }
+  selected = next;
+  anchor = null;
+  renderBlocks();
+  updateSelection();
+  updateChips();
+  markHistoryStep();
+  scheduleSave();
+  const first = Math.min(...selected), last = Math.max(...selected);
+  blockEl(dir < 0 ? first : last).scrollIntoView({ block: 'nearest' });
+}
+
+$('#btn-move-up').onclick = () => moveSelected(-1);
+$('#btn-move-down').onclick = () => moveSelected(1);
+$('#btn-select').onclick = () => setSelecting(true);
+$('#btn-select-done').onclick = () => setSelecting(false);
+$('#btn-select-clear').onclick = () => {
+  selected = new Set();
+  anchor = null;
+  updateSelection();
+};
+$('#btn-delete-blocks').onclick = () => {
+  const n = selected.size;
+  doc.blocks = doc.blocks.filter((_, i) => !selected.has(i));
+  if (!doc.blocks.length) doc.blocks.push({ type: null, text: '' });
+  setSelecting(false);
+  cur = Math.min(cur, doc.blocks.length - 1);
+  renderBlocks();
+  updateToolbar();
+  updateChips();
+  scheduleSave();
+  toast(`${n}段落を削除しました`);
+};
+
+// ---------- 元に戻す・やり直す ----------
+// 作品の中身をまるごと記録する。続けて打った文字は1秒の区切りまで1回分にまとめ、
+// 段落の追加・削除や種類の変更はそれだけで1回分にする
+
+const HISTORY_MAX = 200;
+let hist = { undo: [], redo: [], last: null, shape: '', time: 0 };
+let historyPending = false;
+let historyForce = false; // 段落の並べ替えなど、種類の並びが変わらなくても1回分にする操作
+let restoring = false;
+
+function snapshot() {
+  return JSON.stringify({ cover: doc.cover, characters: doc.characters, blocks: doc.blocks, backCover: doc.backCover });
+}
+
+function blockShape() {
+  return doc.blocks.map(b => b.type).join();
+}
+
+function resetHistory() {
+  hist = { undo: [], redo: [], last: snapshot(), shape: blockShape(), time: 0 };
+  updateHistoryButtons();
+}
+
+// 1つの操作で何度変更されても1回分になるよう、操作の終わりにまとめて記録する
+function markHistoryStep() {
+  historyForce = true;
+}
+
+function scheduleHistory() {
+  if (historyPending) return;
+  historyPending = true;
+  queueMicrotask(commitHistory);
+}
+
+function commitHistory() {
+  historyPending = false;
+  if (!doc) return;
+  const now = snapshot();
+  if (now === hist.last) return;
+  const shape = blockShape();
+  const structural = shape !== hist.shape || historyForce;
+  historyForce = false;
+  if (structural || Date.now() - hist.time > 1000) {
+    hist.undo.push(hist.last);
+    if (hist.undo.length > HISTORY_MAX) hist.undo.shift();
+  }
+  hist.last = now;
+  hist.shape = shape;
+  hist.time = structural ? 0 : Date.now();
+  hist.redo = [];
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  $('#btn-undo').disabled = !hist.undo.length;
+  $('#btn-redo').disabled = !hist.redo.length;
+}
+
+function undo() { step(hist.undo, hist.redo); }
+function redo() { step(hist.redo, hist.undo); }
+
+function step(from, to) {
+  commitHistory();
+  if (!from.length) return;
+  const editing = document.activeElement?.closest?.('#body-blocks');
+  const before = doc.blocks;
+  to.push(hist.last);
+  hist.last = from.pop();
+  hist.time = 0;
+  const s = JSON.parse(hist.last);
+  Object.assign(doc, s);
+  hist.shape = blockShape();
+  // 変わった段落にカーソルを置く
+  let i = doc.blocks.findIndex((b, k) => b.text !== before[k]?.text || b.type !== before[k]?.type);
+  if (i < 0) i = Math.min(cur, doc.blocks.length - 1);
+  cur = Math.min(i, doc.blocks.length - 1);
+  setSelecting(false);
+  restoring = true;
+  fillEditor();
+  scheduleSave();
+  restoring = false;
+  updateHistoryButtons();
+  if (editing) focusBlock(cur);
+}
+
+// ボタンを押してもキーボードが閉じないように、フォーカスを奪わない
+$('.history').addEventListener('pointerdown', e => e.preventDefault());
+$('#btn-undo').onclick = undo;
+$('#btn-redo').onclick = redo;
+document.addEventListener('keydown', e => {
+  if (!doc || $('#view-edit').hidden || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+  e.preventDefault();
+  if (e.shiftKey) redo(); else undo();
 });
 
 // ---------- プレビュー ----------
@@ -364,19 +897,25 @@ $('#export-dialog').addEventListener('click', async e => {
 
 // PDFができたら、もう一度タップしてもらって共有シートを開く
 function showSavePrompt(file) {
+  toastAction(`PDFができました（${Math.round(file.size / 1024)}KB）`, '保存・共有', () => saveFile(file), 0);
+}
+
+// ボタン付きの通知。ms が 0 なら閉じるまで出したまま
+function toastAction(msg, label, fn, ms = 6000) {
   const t = $('#toast');
   clearTimeout(toast.timer);
   t.innerHTML = '';
-  t.append(`PDFができました（${Math.round(file.size / 1024)}KB）`);
+  t.append(msg);
   const b = document.createElement('button');
-  b.textContent = '保存・共有';
-  b.onclick = async () => { t.hidden = true; await saveFile(file); };
+  b.textContent = label;
+  b.onclick = () => { t.hidden = true; fn(); };
   const x = document.createElement('button');
   x.textContent = '閉じる';
   x.className = 'sub';
   x.onclick = () => { t.hidden = true; };
   t.append(b, x);
   t.hidden = false;
+  if (ms) toast.timer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
 // ---------- 起動 ----------

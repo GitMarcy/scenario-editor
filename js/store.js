@@ -43,7 +43,7 @@ function newScript() {
     updatedAt: Date.now(),
     cover: { subtitle: '', title: '', author: '' },
     characters: '',
-    body: '',
+    blocks: [{ type: null, text: '' }],
     backCover: { text: '' },
   };
 }
@@ -55,7 +55,15 @@ function normalizeImported(data) {
     ...base,
     cover: { ...base.cover, ...(data.cover || {}) },
     characters: String(data.characters || ''),
-    body: String(data.body || ''),
+    blocks: normalizeBlocks(data),
     backCover: { ...base.backCover, ...(data.backCover || {}) },
   };
+}
+
+// 旧形式（body に1行＝1段落のテキスト）をブロックに変換する
+function normalizeBlocks(data) {
+  const blocks = Array.isArray(data.blocks)
+    ? data.blocks.map(b => ({ type: ['hashira', 'togaki', 'serifu'].includes(b?.type) ? b.type : null, text: String(b?.text || '') }))
+    : textToBlocks(String(data.body || ''));
+  return blocks.length ? blocks : [{ type: null, text: '' }];
 }

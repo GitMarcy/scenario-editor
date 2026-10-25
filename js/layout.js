@@ -15,6 +15,8 @@ const INDENT = {
   hashira: [0, 1],
   togaki: [3, 3],
   serifu: [0, 1],
+  serifuCont: [1, 1], // セリフの続きは1行目から1字下げ
+  none: [0, 0],       // 種類未選択
 };
 
 // 半角英数記号を全角に（縦書きで横倒しにならないように）
@@ -46,11 +48,17 @@ function wrap(text, first, rest, width = COLS) {
   return lines;
 }
 
-function layoutBody(text) {
+// 各行に、元のブロック番号（block）とブロック内の何行目か（row）を付ける。
+// 柱の前は1行空ける。ただし柱が見開き（A4の紙）の1行目に来るときは空けない
+function layoutBody(blocks) {
   const lines = [];
-  for (const p of parseBody(text)) {
-    const [first, rest] = INDENT[p.type];
-    for (const l of wrap(toFull(p.text), first, rest)) lines.push({ ...l, type: p.type });
+  for (const p of bodyParas(blocks)) {
+    const [first, rest] = INDENT[p.cont ? 'serifuCont' : p.type];
+    let row = 0;
+    if (p.type === 'hashira' && lines.length % (LINES_PER_HALF * 2) !== 0) {
+      lines.push({ indent: 0, chars: [], type: 'blank', block: p.block, row: row++ });
+    }
+    for (const l of wrap(toFull(p.text), first, rest)) lines.push({ ...l, type: p.type, block: p.block, row: row++ });
   }
   return lines;
 }
@@ -82,7 +90,7 @@ function buildSheets(doc) {
     ] });
   }
 
-  const bodyHalves = chunk(layoutBody(doc.body), LINES_PER_HALF);
+  const bodyHalves = chunk(layoutBody(doc.blocks), LINES_PER_HALF);
   if (!bodyHalves.length) bodyHalves.push([]);
   for (let k = 0; k < bodyHalves.length; k += 2) {
     sheets.push({ kind: 'grid', halves: [

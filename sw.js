@@ -1,5 +1,5 @@
 // オフライン用キャッシュ。オンラインなら最新を取りに行き、オフラインならキャッシュを使う
-const CACHE = 'scenario-editor-v2';
+const CACHE = 'scenario-editor-v3';
 const ASSETS = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/parser.js', 'js/layout.js', 'js/render.js', 'js/export.js',

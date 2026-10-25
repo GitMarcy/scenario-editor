@@ -35,6 +35,14 @@
   <header class="bar">
     <button id="btn-back" class="btn ghost">‹ 一覧</button>
     <div id="edit-title" class="bar-title"></div>
+    <div class="history">
+      <button id="btn-undo" class="icon-btn" aria-label="元に戻す" title="元に戻す" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+      </button>
+      <button id="btn-redo" class="icon-btn" aria-label="やり直す" title="やり直す" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+      </button>
+    </div>
     <button id="btn-export" class="btn primary">書き出し</button>
   </header>
 
@@ -57,31 +65,46 @@
 
     <div class="panel" data-panel="body">
       <div class="toolbar" id="toolbar">
-        <button data-insert="hashira">○</button>
-        <button data-insert="kakko">「」</button>
-        <span id="name-chips" class="chips"></span>
-        <button data-insert="（朝）">（朝）</button>
-        <button data-insert="（夕）">（夕）</button>
-        <button data-insert="（夜）">（夜）</button>
-        <button data-insert="……">……</button>
-        <button data-insert="――">――</button>
+        <div class="toolbar-row">
+          <div class="types" id="type-buttons">
+            <button data-type="hashira">柱</button>
+            <button data-type="togaki">ト書き</button>
+            <button data-type="serifu">セリフ</button>
+          </div>
+          <span id="caret-pos" class="caret-pos"></span>
+          <button id="btn-select" class="select-btn">選択</button>
+        </div>
+        <div class="toolbar-row inserts">
+          <span id="name-chips" class="chips"></span>
+          <button data-insert="kakko">「」</button>
+          <button data-insert="（朝）">（朝）</button>
+          <button data-insert="（夕）">（夕）</button>
+          <button data-insert="（夜）">（夜）</button>
+          <button data-insert="batsu">×××</button>
+        </div>
+        <div class="toolbar-row select-bar">
+          <span id="select-count" class="select-count"></span>
+          <button id="btn-move-up" aria-label="上へ移動">↑</button>
+          <button id="btn-move-down" aria-label="下へ移動">↓</button>
+          <button id="btn-select-clear">選択解除</button>
+          <button id="btn-delete-blocks" class="danger">削除</button>
+          <button id="btn-select-done">完了</button>
+        </div>
       </div>
-      <div class="body-editor">
-        <div id="body-backdrop" class="backdrop" aria-hidden="true"></div>
-        <textarea id="body-text" spellcheck="false" autocomplete="off" autocapitalize="off"
-          placeholder="○河川敷（朝）&#10;はなこが走っている。&#10;はなこ「おはよう！」"></textarea>
-      </div>
+      <div id="body-blocks" class="blocks"></div>
+      <p id="body-stats" class="stats"></p>
       <details class="help">
         <summary>書き方</summary>
         <ul>
-          <li><b>柱</b>：行頭に「○」。（昼）は自動で省きます。</li>
-          <li><b>セリフ</b>：<code>名前「セリフ」</code>。2行目以降は自動で1字下げます。</li>
-          <li><b>ト書き</b>：それ以外の行。自動で3字下げます。</li>
-          <li>「看板には「…」」のように、ト書きなのにセリフと判定される行は、行頭にスペースを1つ入れるとト書きになります。</li>
-          <li>1段落は1行で書きます（途中で改行しない）。</li>
+          <li>段落ごとに、上の<b>［柱］［ト書き］［セリフ］</b>から種類を選んでから書きます。「○」で書き始めると柱、空白を3つ入れて書き始めるとト書き、<code>名前「</code>と書き始めるとセリフに自動でなります。</li>
+          <li><b>柱</b>：選ぶと「○」が入ります。「○」を消すと、種類を選ぶ前に戻ります。（昼）は自動で省きます。柱の前は自動で1行空きます（紙の1行目に来るときは空けません）。</li>
+          <li><b>セリフ</b>：<code>名前「セリフ」</code>。名前のボタンを押すと「名前「」」が入ります。2行目以降は自動で1字下げます。</li>
+          <li><b>ト書き</b>：自動で3字下げます。［×××］で場面転換の「×　　　×　　　×」が入ります。</li>
+          <li>段落を消したり順番を入れ替えたりするときは［選択］を押し、段落をタップします。指（マウス）でなぞるか、2つ目のタップで、その間の段落もまとめて選べます。［↑］［↓］で選んだ段落を1つずつ上下に動かし、［削除］で消します。</li>
+          <li>改行キーで次の段落に進みます。柱・ト書きの次は自動でト書き、セリフの途中で改行すると次も自動でセリフになります（「」」で閉じたあとの改行では、種類を選び直します）。セリフの続きは行頭に空白が入って1字下げになり（区切りのよいところでセリフを改行できます）、空白を消すと種類を選ぶ前に戻ります。マス目は原稿用紙（1行20字）と同じ幅で、点線のところでノンブル（ページ）が変わります。</li>
+          <li>入力中の段落は20字ちょうどで折り返します。句読点のぶら下げなど、印刷どおりの折り返しは段落を離れると表示されます。</li>
         </ul>
       </details>
-      <p id="body-stats" class="stats"></p>
     </div>
 
     <div class="panel" data-panel="back">

@@ -144,20 +144,22 @@ function escapeHtml(s) {
 
 // 原稿用紙どおり：20字で改行し、字下げは全角スペース
 function gridText(doc) {
-  return layoutBody(doc.body).map(lineToString).join('\n');
+  return layoutBody(doc.blocks).map(lineToString).join('\n');
 }
 
 // 段落ごと：テキストは1字目だけ字下げ、HTMLはぶら下げインデントで2行目以降も揃える
 function paragraphContent(doc) {
-  const paras = parseBody(doc.body).map(p => ({ ...p, text: toFull(p.text) }));
-  const plain = paras.map(p => (p.type === 'togaki' ? '　　　' : '') + p.text).join('\n');
+  const paras = bodyParas(doc.blocks).map(p => ({ ...p, text: toFull(p.text) }));
+  const plain = paras.map(p => (p.type === 'togaki' ? '　　　' : p.cont ? '　' : '') + p.text).join('\n');
   const style = {
     hashira: 'margin:0 0 0 1em;text-indent:-1em',
     togaki: 'margin:0 0 0 3em',
     serifu: 'margin:0 0 0 1em;text-indent:-1em',
+    serifuCont: 'margin:0 0 0 1em',
+    none: 'margin:0',
   };
   const html = '<div style="font-family:\'游明朝\',\'Yu Mincho\',\'ヒラギノ明朝 ProN\',serif">' +
-    paras.map(p => `<p style="${style[p.type]}">${escapeHtml(p.text)}</p>`).join('') + '</div>';
+    paras.map(p => `<p style="${style[p.cont ? 'serifuCont' : p.type]}">${escapeHtml(p.text)}</p>`).join('') + '</div>';
   return { plain, html };
 }
 

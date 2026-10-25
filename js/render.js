@@ -8,10 +8,11 @@ const G = {
   font: 4.6,                  // 本文の文字サイズ
   halfTop: 28.75,             // 紙の上端から半ページ枠の上端まで
   halfPad: 10,                // 半ページ枠の上端から1字目のマスまで
-  rightHalfX: 159.9,          // 右半分の左端
-  leftHalfX: 23.1,            // 左半分の左端
 };
 G.halfW = G.pitchX * LINES_PER_HALF;
+// 左右の半ページは間を空けずに並べ、紙の中央に置く
+G.leftHalfX = (G.sheetW - G.halfW * 2) / 2; // 左半分の左端
+G.rightHalfX = G.leftHalfX + G.halfW;       // 右半分の左端
 G.halfH = G.halfPad + G.pitchY * (COLS + 2) + 6;
 G.nombreY = G.halfPad + G.pitchY * (COLS + 2) + 1;
 
