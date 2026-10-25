@@ -192,6 +192,8 @@ fields.back.oninput = () => { doc.backCover.text = fields.back.value; scheduleSa
 const charList = $('#char-list');
 
 function renderCharacters() {
+  // 人物が一人もいないときは、すぐ書きはじめられるよう空の欄を1人分出しておく（空の欄は台本には出ない）
+  if (!doc.characters.length) doc.characters.push({ name: '', age: '', job: '', label: '' });
   const n = doc.characters.length;
   charList.replaceChildren(...doc.characters.map((c, i) => {
     const el = document.createElement('div');
@@ -475,12 +477,12 @@ if (window.visualViewport) {
     setTimeout(() => { if (veil.classList.contains('fade')) veil.hidden = true; }, 200);
   };
   const waitSettle = ms => { clearTimeout(settleTimer); settleTimer = setTimeout(uncover, ms); };
-  // キーボードが出たままでも、別の段落をタップしたときは覆う（改行で次の段落へ進むときは覆わない）
+  // 指で段落をタップしたときだけ覆う（PCのクリックや、改行で次の段落へ進むときは画面が動かないので覆わない）
   let tappedAt = 0;
-  blocksEl.addEventListener('pointerdown', () => { tappedAt = performance.now(); });
+  blocksEl.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') tappedAt = performance.now(); });
   blocksEl.addEventListener('focusin', e => {
     if (e.target.tagName !== 'TEXTAREA' || selecting) return;
-    if (root.classList.contains('kb') && performance.now() - tappedAt > 1000) return;
+    if (performance.now() - tappedAt > 1000) return;
     veil.classList.remove('fade');
     veil.hidden = false;
     waitSettle(300); // 外付けキーボードなどで画面が動かないときも消えるように
