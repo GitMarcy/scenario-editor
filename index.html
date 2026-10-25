@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="シナリオ">
+<meta name="theme-color" content="#f6f3ec">
+<title>シナリオエディター</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 作品一覧 -->
+<section id="view-list" class="view">
+  <header class="bar">
+    <h1>シナリオ</h1>
+    <div class="bar-actions">
+      <label class="btn ghost" for="import-file">読み込み</label>
+      <input id="import-file" type="file" accept=".json,application/json" hidden>
+      <button id="btn-new" class="btn primary">＋ 新規</button>
+    </div>
+  </header>
+  <ul id="script-list" class="script-list"></ul>
+  <p id="list-empty" class="empty" hidden>まだ作品がありません。<br>「＋ 新規」から書き始めましょう。</p>
+</section>
+
+<!-- 編集 -->
+<section id="view-edit" class="view" hidden>
+  <header class="bar">
+    <button id="btn-back" class="btn ghost">‹ 一覧</button>
+    <div id="edit-title" class="bar-title"></div>
+    <button id="btn-export" class="btn primary">書き出し</button>
+  </header>
+
+  <main class="panels">
+    <div class="panel" data-panel="cover">
+      <label class="field"><span>副題（右上に小さく）</span>
+        <input id="cover-subtitle" type="text" placeholder="本科　課題１「ハンカチ」"></label>
+      <label class="field"><span>タイトル</span>
+        <input id="cover-title" type="text" placeholder="ハンカチめくり"></label>
+      <label class="field"><span>作者名</span>
+        <input id="cover-author" type="text" placeholder="山田　太郎"></label>
+      <p class="hint">名前の途中に全角スペースを入れると、表紙でも同じように空きます。</p>
+    </div>
+
+    <div class="panel" data-panel="characters">
+      <label class="field"><span>人物（1行に1人）</span>
+        <textarea id="characters" rows="8" placeholder="田中蓮（２５）フリーター&#10;小林湊（２５）フリーター"></textarea></label>
+      <p class="hint">ここに書いた名前は、本文のツールバーにボタンとして出ます。</p>
+    </div>
+
+    <div class="panel" data-panel="body">
+      <div class="toolbar" id="toolbar">
+        <button data-insert="hashira">○</button>
+        <button data-insert="kakko">「」</button>
+        <span id="name-chips" class="chips"></span>
+        <button data-insert="（朝）">（朝）</button>
+        <button data-insert="（夕）">（夕）</button>
+        <button data-insert="（夜）">（夜）</button>
+        <button data-insert="……">……</button>
+        <button data-insert="――">――</button>
+      </div>
+      <div class="body-editor">
+        <div id="body-backdrop" class="backdrop" aria-hidden="true"></div>
+        <textarea id="body-text" spellcheck="false" autocomplete="off" autocapitalize="off"
+          placeholder="○河川敷（朝）&#10;はなこが走っている。&#10;はなこ「おはよう！」"></textarea>
+      </div>
+      <details class="help">
+        <summary>書き方</summary>
+        <ul>
+          <li><b>柱</b>：行頭に「○」。（昼）は自動で省きます。</li>
+          <li><b>セリフ</b>：<code>名前「セリフ」</code>。2行目以降は自動で1字下げます。</li>
+          <li><b>ト書き</b>：それ以外の行。自動で3字下げます。</li>
+          <li>「看板には「…」」のように、ト書きなのにセリフと判定される行は、行頭にスペースを1つ入れるとト書きになります。</li>
+          <li>1段落は1行で書きます（途中で改行しない）。</li>
+        </ul>
+      </details>
+      <p id="body-stats" class="stats"></p>
+    </div>
+
+    <div class="panel" data-panel="back">
+      <label class="field"><span>裏表紙の文字</span>
+        <textarea id="back-text" rows="3"></textarea></label>
+      <p class="hint">空欄のときは作者名が入ります。</p>
+    </div>
+
+    <div class="panel panel-preview" data-panel="preview">
+      <div class="preview-controls">
+        <div class="seg">
+          <button data-pmode="half" class="on">半ページ</button>
+          <button data-pmode="sheet">見開き</button>
+        </div>
+        <label class="check"><input id="grid-toggle" type="checkbox" checked> マス目</label>
+        <span id="page-indicator" class="page-indicator"></span>
+      </div>
+      <div id="preview-scroller" class="preview-scroller"></div>
+    </div>
+  </main>
+
+  <nav class="tabs">
+    <button data-tab="cover">表紙</button>
+    <button data-tab="characters">人物</button>
+    <button data-tab="body">本文</button>
+    <button data-tab="back">裏表紙</button>
+    <button data-tab="preview">プレビュー</button>
+  </nav>
+</section>
+
+<!-- 書き出しメニュー -->
+<dialog id="export-dialog" class="sheet-dialog">
+  <h2>書き出し</h2>
+  <button data-export="pdf">PDFファイルを作成</button>
+  <button data-export="print">印刷（印刷画面からPDF保存）</button>
+  <button data-export="copy-grid">Word用にコピー（原稿用紙どおり）</button>
+  <button data-export="copy-para">Word用にコピー（段落ごと）</button>
+  <button data-export="backup">バックアップ（.json）を保存</button>
+  <button data-export="close" class="cancel">閉じる</button>
+</dialog>
+
+<!-- 作品メニュー -->
+<dialog id="item-dialog" class="sheet-dialog">
+  <h2 id="item-dialog-title"></h2>
+  <button data-item="duplicate">複製</button>
+  <button data-item="backup">バックアップ（.json）を保存</button>
+  <button data-item="delete" class="danger">削除</button>
+  <button data-item="close" class="cancel">閉じる</button>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+<div id="busy" class="busy" hidden><div>作成中…</div></div>
+<div id="print-root"></div>
+
+<!-- ダブルクリック（file://）でも動くよう、モジュールではなく順番に読み込む -->
+<script src="js/store.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/render.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
