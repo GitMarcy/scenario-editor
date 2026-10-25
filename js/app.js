@@ -12,9 +12,9 @@ const fields = {
   subtitle: $('#cover-subtitle'),
   title: $('#cover-title'),
   author: $('#cover-author'),
-  characters: $('#characters'),
   back: $('#back-text'),
 };
+const panelsEl = $('.panels'); // 編集画面のスクロールする部分
 
 // ---------- 共通 ----------
 
@@ -138,6 +138,10 @@ async function openScript(id, tab) {
     delete doc.body;
     scheduleSave();
   }
+  if (!Array.isArray(doc.characters)) {
+    doc.characters = normalizeCharacters(doc.characters);
+    scheduleSave();
+  }
   // 以前に作ったまま何も書いていない作品も、柱から書きはじめられるようにする
   if (isBlankBody(doc.blocks)) doc.blocks = firstBlocks();
   localStorage.setItem('lastOpened', id);
@@ -152,7 +156,7 @@ function fillEditor() {
   fields.subtitle.value = doc.cover.subtitle;
   fields.title.value = doc.cover.title;
   fields.author.value = doc.cover.author;
-  fields.characters.value = doc.characters;
+  renderCharacters();
   fields.back.value = doc.backCover.text;
   updateTitle();
   renderBlocks();
@@ -173,7 +177,7 @@ function switchTab(name) {
   $$('.panel').forEach(p => { p.hidden = p.dataset.panel !== name; });
   if (name === 'preview') renderPreview();
   setSelecting(false);
-  window.scrollTo(0, 0);
+  panelsEl.scrollTop = 0;
 }
 
 $$('.tabs button').forEach(b => { b.onclick = () => switchTab(b.dataset.tab); });
@@ -181,8 +185,73 @@ $$('.tabs button').forEach(b => { b.onclick = () => switchTab(b.dataset.tab); })
 fields.subtitle.oninput = () => { doc.cover.subtitle = fields.subtitle.value; scheduleSave(); };
 fields.title.oninput = () => { doc.cover.title = fields.title.value; updateTitle(); scheduleSave(); };
 fields.author.oninput = () => { doc.cover.author = fields.author.value; updateTitle(); scheduleSave(); };
-fields.characters.oninput = () => { doc.characters = fields.characters.value; updateChips(); scheduleSave(); };
 fields.back.oninput = () => { doc.backCover.text = fields.back.value; scheduleSave(); };
+
+// ---------- 人物 ----------
+
+const charList = $('#char-list');
+
+function renderCharacters() {
+  const n = doc.characters.length;
+  charList.replaceChildren(...doc.characters.map((c, i) => {
+    const el = document.createElement('div');
+    el.className = 'char';
+    el.innerHTML = `<div class="char-row">
+        <label class="field"><span>名前</span><input data-k="name" type="text" placeholder="田中蓮"></label>
+        <label class="field"><span>年齢</span><input data-k="age" type="text" placeholder="２５"></label>
+        <label class="field"><span>職業</span><input data-k="job" type="text" placeholder="フリーター"></label>
+      </div>
+      <label class="field"><span>名前の表記</span><input data-k="label" type="text"></label>
+      <div class="char-actions">
+        <span class="num">${i + 1}</span>
+        <button data-act="up" aria-label="上へ移動" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button data-act="down" aria-label="下へ移動" ${i === n - 1 ? 'disabled' : ''}>↓</button>
+        <button data-act="del" class="del">削除</button>
+      </div>`;
+    for (const input of el.querySelectorAll('input')) input.value = c[input.dataset.k];
+    el.querySelector('[data-k="label"]').placeholder = c.name || '田中';
+    return el;
+  }));
+}
+
+charList.addEventListener('input', e => {
+  const k = e.target.dataset.k;
+  if (!k) return;
+  const i = [...charList.children].indexOf(e.target.closest('.char'));
+  doc.characters[i][k] = e.target.value;
+  if (k === 'name') e.target.closest('.char').querySelector('[data-k="label"]').placeholder = e.target.value || '田中';
+  updateChips();
+  scheduleSave();
+});
+
+charList.addEventListener('click', e => {
+  const act = e.target.closest('button')?.dataset.act;
+  if (!act) return;
+  const i = [...charList.children].indexOf(e.target.closest('.char'));
+  const c = doc.characters[i];
+  if (act === 'del') {
+    if ((c.name || c.label || c.age || c.job) && !confirm(`「${c.name || c.label || '名前なし'}」を削除しますか？`)) return;
+    doc.characters.splice(i, 1);
+    renderCharacters();
+  } else {
+    const j = act === 'up' ? i - 1 : i + 1;
+    [doc.characters[i], doc.characters[j]] = [doc.characters[j], doc.characters[i]];
+    renderCharacters();
+    // 続けて押せるように、動かした人物のボタンにフォーカスを移す
+    charList.children[j].querySelector(`[data-act="${act}"]`).focus();
+  }
+  markHistoryStep();
+  updateChips();
+  scheduleSave();
+});
+
+$('#btn-add-char').onclick = () => {
+  doc.characters.push({ name: '', age: '', job: '', label: '' });
+  renderCharacters();
+  charList.lastElementChild.querySelector('input').focus();
+  markHistoryStep();
+  scheduleSave();
+};
 
 // ---------- 本文エディタ（1段落＝1ブロック） ----------
 
@@ -375,6 +444,54 @@ blocksEl.addEventListener('focusout', e => {
 document.addEventListener('selectionchange', () => {
   if (document.activeElement?.closest?.('#body-blocks')) updateCaret();
 });
+
+// iPhoneではキーボードが出ると、見えている範囲だけが縮んで下にずれる。
+// 編集画面をその範囲に合わせ（#view-edit の --vv-top / --vv-h）、ページ自体はスクロールさせない
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const root = document.documentElement;
+  const fit = () => {
+    // 入力を始めるとページ全体が上に送られるので、編集中は元に戻す
+    if (!$('#view-edit').hidden && (scrollX || scrollY)) window.scrollTo(0, 0);
+    root.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    root.style.setProperty('--vv-h', vv.height + 'px');
+    root.classList.toggle('kb', innerHeight - vv.height > 120);
+    if (debugViewport) {
+      const r = $('#view-edit').getBoundingClientRect();
+      debugViewport.textContent = `vv ${Math.round(vv.offsetTop)}/${Math.round(vv.height)} win ${Math.round(scrollY)}/${innerHeight} edit ${Math.round(r.top)}/${Math.round(r.height)}`;
+    }
+  };
+  // 「…/index.html?debug」で開くと、画面の位置の値を左上に出す（不具合を調べるため）
+  const debugViewport = location.search.includes('debug') && $('#view-edit').appendChild(document.createElement('div'));
+  if (debugViewport) debugViewport.style.cssText = 'position:absolute;left:4px;bottom:4px;z-index:99;font:11px monospace;background:#000c;color:#fff;padding:2px 4px;pointer-events:none';
+  // キーボードが出入りするあいだは、通知が遅れたり来なかったりするので、しばらく毎フレーム合わせる
+  let until = 0;
+  const watch = () => {
+    const loop = () => { fit(); if (performance.now() < until) requestAnimationFrame(loop); };
+    if (performance.now() >= until) requestAnimationFrame(loop);
+    until = performance.now() + 1000;
+  };
+  vv.addEventListener('resize', watch);
+  vv.addEventListener('scroll', watch);
+  window.addEventListener('scroll', watch, { passive: true });
+  document.addEventListener('focusin', watch);
+  document.addEventListener('focusout', watch);
+  document.addEventListener('input', watch);
+  fit();
+}
+
+// 入力中の段落がツールバーの下やキーボードに隠れたら、見えるところまで送る
+function revealCaretBlock() {
+  const ta = document.activeElement;
+  if (!ta?.closest?.('#body-blocks')) return;
+  const r = ta.getBoundingClientRect();
+  const top = $('#toolbar').getBoundingClientRect().bottom + 8;
+  const bottom = panelsEl.getBoundingClientRect().bottom - 8;
+  // 長い段落は先頭まで戻すとカーソルが下に隠れるので、末尾を見せる
+  if (r.top < top && r.height < bottom - top) panelsEl.scrollTop -= top - r.top;
+  else if (r.bottom > bottom) panelsEl.scrollTop += Math.min(r.bottom - bottom, r.top - top);
+}
+blocksEl.addEventListener('focusin', () => setTimeout(revealCaretBlock, 350)); // キーボードが出てから
 
 // 余白やバッジを押したら、そのブロック（なければ最後のブロック）を編集
 blocksEl.addEventListener('click', e => {
@@ -622,10 +739,10 @@ function dragTo(y) {
 function autoScroll() {
   if (!drag) return;
   const top = $('#toolbar').getBoundingClientRect().bottom + 40;
-  const bottom = $('.tabs').getBoundingClientRect().top - 40;
+  const bottom = panelsEl.getBoundingClientRect().bottom - 40;
   const dy = drag.y < top ? -(top - drag.y) / 3 : drag.y > bottom ? (drag.y - bottom) / 3 : 0;
   if (dy) {
-    window.scrollBy(0, Math.max(-20, Math.min(20, dy)));
+    panelsEl.scrollTop += Math.max(-20, Math.min(20, dy));
     dragTo(drag.y);
   }
   drag.raf = requestAnimationFrame(autoScroll);

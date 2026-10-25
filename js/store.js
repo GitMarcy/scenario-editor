@@ -52,7 +52,7 @@ function newScript() {
     id: newId(),
     updatedAt: Date.now(),
     cover: { subtitle: '', title: '', author: '' },
-    characters: '',
+    characters: [],
     blocks: firstBlocks(),
     backCover: { text: '' },
   };
@@ -64,10 +64,19 @@ function normalizeImported(data) {
   return {
     ...base,
     cover: { ...base.cover, ...(data.cover || {}) },
-    characters: String(data.characters || ''),
+    characters: normalizeCharacters(data.characters),
     blocks: normalizeBlocks(data),
     backCover: { ...base.backCover, ...(data.backCover || {}) },
   };
+}
+
+// 人物は { name, age, job, label } の配列。label は本文で使う名前の表記（空なら name のまま）。
+// 旧形式（1行に1人のテキスト）は各行を分解して変換する
+function normalizeCharacters(v) {
+  if (Array.isArray(v)) {
+    return v.map(c => ({ name: String(c?.name || ''), age: String(c?.age || ''), job: String(c?.job || ''), label: String(c?.label || '') }));
+  }
+  return String(v || '').split('\n').map(l => l.trim()).filter(Boolean).map(parseCharacterLine);
 }
 
 // 旧形式（body に1行＝1段落のテキスト）をブロックに変換する

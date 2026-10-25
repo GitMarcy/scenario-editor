@@ -56,9 +56,21 @@ function serifuNames(blocks) {
   return [...count.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
 }
 
-// 人物表の各行から名前部分（「（」や空白の手前）を取り出す
-function characterNames(text) {
-  return (text || '').split('\n')
-    .map(l => l.trim().split(/[（(\s　]/)[0])
-    .filter(Boolean);
+// 旧形式の人物表の1行「田中蓮（２５）フリーター」を名前・年齢・職業に分ける
+function parseCharacterLine(line) {
+  const m = line.match(/^(.+?)[（(]([^）)]*)[）)][\s　]*(.*)$/);
+  if (m) return { name: m[1].trim(), age: m[2].trim(), job: m[3].trim(), label: '' };
+  const [name, ...rest] = line.split(/[\s　]+/);
+  return { name, age: '', job: rest.join('　'), label: '' };
+}
+
+// 本文で使う人物の名前（名前の表記があればそちら）
+function characterNames(characters) {
+  return (characters || []).map(c => (c.label || c.name).trim()).filter(Boolean);
+}
+
+// 人物表に印刷する1行「名前（年齢）職業」
+function characterLine(c) {
+  const name = c.name.trim(), age = c.age.trim(), job = c.job.trim();
+  return name + (age ? `（${age}）` : '') + (job ? (age || !name ? '' : '　') + job : '');
 }

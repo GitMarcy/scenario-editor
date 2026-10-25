@@ -21,6 +21,7 @@
   <header class="bar">
     <h1>シナリオ</h1>
     <div class="bar-actions">
+      <a class="btn ghost" href="manual.html">使い方</a>
       <label class="btn ghost" for="import-file">読み込み</label>
       <input id="import-file" type="file" accept=".json,application/json" hidden>
       <button id="btn-new" class="btn primary">＋ 新規</button>
@@ -34,6 +35,7 @@
       <li>大切な台本は、こまめに「バックアップ（.json）を保存」で書き出して、ファイルアプリやクラウドなどに保管しましょう。</li>
       <li>書き出したJSONは、右上の「読み込み」から読み込めます。読み込んだ台本は、元の台本に上書きされず、新しい台本として一覧に追加されます。</li>
       <li>PCとiPhoneのデータは別々です。別の端末で続きを書くときは、書き出したJSONを読み込んでください。</li>
+      <li>くわしくは<a href="manual.html#json">使い方</a>をご覧ください。</li>
     </ul>
   </details>
   <ul id="script-list" class="script-list"></ul>
@@ -68,9 +70,10 @@
     </div>
 
     <div class="panel" data-panel="characters">
-      <label class="field"><span>人物（1行に1人）</span>
-        <textarea id="characters" rows="8" placeholder="田中蓮（２５）フリーター&#10;小林湊（２５）フリーター"></textarea></label>
-      <p class="hint">ここに書いた名前は、本文のツールバーにボタンとして出ます。</p>
+      <div id="char-list" class="char-list"></div>
+      <button id="btn-add-char" class="btn ghost add-char">＋ 追加</button>
+      <p class="hint">人物表には「名前（年齢）職業」の形で印刷されます。職業の欄には、主人公との関係（蓮の母など）も書けます。</p>
+      <p class="hint">「名前の表記」は、本文のセリフやト書きで使う呼び方です（男性は姓、女性や子供は名、など）。本文のツールバーにボタンとして出ます。空欄なら名前のまま使います。</p>
     </div>
 
     <div class="panel" data-panel="body">

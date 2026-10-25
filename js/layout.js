@@ -63,8 +63,8 @@ function layoutBody(blocks) {
   return lines;
 }
 
-function layoutCharacters(text) {
-  const entries = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
+function layoutCharacters(characters) {
+  const entries = (characters || []).map(characterLine).filter(Boolean);
   if (!entries.length) return [];
   const lines = [{ indent: 3, chars: [...'人　物'] }];
   for (const e of entries) lines.push(...wrap(toFull(e), 1, 2));
