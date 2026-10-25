@@ -376,6 +376,13 @@ a.btn { display: inline-block; text-decoration: none; }
 }
 .toast button { border: 0; border-radius: 8px; padding: 6px 12px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .toast button.sub { background: transparent; color: #ccc; font-weight: 400; }
+/* キーボードが出て位置が落ち着くまで、画面を背景色で覆う（画面の動きを見せない）。
+   iOSが画面を送るとこれも一緒にずれるので、上下に余裕をとる */
+.veil {
+  position: fixed; left: 0; right: 0; top: -50vh; bottom: -50vh; z-index: 70;
+  background: var(--bg); pointer-events: none; transition: opacity .15s;
+}
+.veil.fade { opacity: 0; }
 .busy {
   position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.35);
   display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px;

@@ -450,8 +450,32 @@ document.addEventListener('selectionchange', () => {
 if (window.visualViewport) {
   const vv = window.visualViewport;
   const root = document.documentElement;
-  let lastTop = 0;
+  // 段落をタップしてからキーボードが出て位置が落ち着くまで、画面を背景色で覆っておく
+  const veil = $('#veil');
+  let settleTimer, veilLimit;
+  const uncover = () => {
+    clearTimeout(settleTimer);
+    clearTimeout(veilLimit);
+    if (veil.hidden || veil.classList.contains('fade')) return;
+    veil.classList.add('fade');
+    setTimeout(() => { if (veil.classList.contains('fade')) veil.hidden = true; }, 200);
+  };
+  const waitSettle = ms => { clearTimeout(settleTimer); settleTimer = setTimeout(uncover, ms); };
+  blocksEl.addEventListener('focusin', e => {
+    if (e.target.tagName !== 'TEXTAREA' || selecting || root.classList.contains('kb')) return;
+    veil.classList.remove('fade');
+    veil.hidden = false;
+    waitSettle(300); // 外付けキーボードなどで画面が動かないときも消えるように
+    clearTimeout(veilLimit);
+    veilLimit = setTimeout(uncover, 900);
+  });
+
+  let lastTop = 0, lastH = vv.height;
   const fit = () => {
+    if (vv.offsetTop !== lastTop || vv.height !== lastH) {
+      lastH = vv.height;
+      if (!veil.hidden) waitSettle(150);
+    }
     const editing = !$('#view-edit').hidden;
     // 入力を始めるとページ全体が上に送られる。編集画面を元の位置に戻し、
     // 送られた分だけ中身を同じだけスクロールして、文字の見える位置は変えない（画面が行ったり来たりしないように）
