@@ -1,5 +1,6 @@
-// オフライン用キャッシュ。オンラインなら最新を取りに行き、オフラインならキャッシュを使う
-const CACHE = 'scenario-editor-v8';
+// オフライン用キャッシュ。オンラインなら最新を取りに行き、オフラインならキャッシュを使う。
+// ブラウザのHTTPキャッシュ（GitHub Pagesは10分）を通すと新旧のファイルが混ざるので、必ずサーバーに確かめる
+const CACHE = 'scenario-editor-v9';
 const ASSETS = [
   './', 'index.html', 'manual.html', 'style.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/parser.js', 'js/layout.js', 'js/render.js', 'js/export.js',
@@ -7,7 +8,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -19,7 +20,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
