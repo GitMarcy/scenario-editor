@@ -381,6 +381,7 @@ a.btn { display: inline-block; text-decoration: none; }
 .veil {
   position: fixed; left: 0; right: 0; top: -50vh; bottom: -50vh; z-index: 70;
   background: var(--bg); pointer-events: none; transition: opacity .15s;
+  opacity: var(--veil-opacity, 1); /* 「?veil=0.7」のように開くと濃さを変えられる */
 }
 .veil.fade { opacity: 0; }
 .busy {

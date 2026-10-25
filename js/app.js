@@ -452,6 +452,11 @@ if (window.visualViewport) {
   const root = document.documentElement;
   // 段落をタップしてからキーボードが出て位置が落ち着くまで、画面を背景色で覆っておく
   const veil = $('#veil');
+  // 覆いの濃さ（0〜1）。「…/index.html?veil=0.7」で開くと変えられ、この端末に覚えておく（試すため）
+  const veilParam = new URLSearchParams(location.search).get('veil');
+  if (veilParam !== null) localStorage.setItem('veilOpacity', veilParam);
+  const veilOpacity = parseFloat(localStorage.getItem('veilOpacity'));
+  if (veilOpacity >= 0 && veilOpacity <= 1) root.style.setProperty('--veil-opacity', veilOpacity);
   let settleTimer, veilLimit;
   const uncover = () => {
     clearTimeout(settleTimer);
