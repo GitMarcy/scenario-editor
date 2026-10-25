@@ -37,13 +37,23 @@ function newId() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+// 書きはじめの本文。シナリオは柱から始まるので、最初の段落は「○」を入れた柱にしておく
+function firstBlocks() {
+  return [{ type: 'hashira', text: '○' }];
+}
+
+// 本文がまだ何も書かれていない（段落が1つだけで、種類も文字もない）
+function isBlankBody(blocks) {
+  return blocks.length === 1 && !blocks[0].type && !blocks[0].text.trim();
+}
+
 function newScript() {
   return {
     id: newId(),
     updatedAt: Date.now(),
     cover: { subtitle: '', title: '', author: '' },
     characters: '',
-    blocks: [{ type: null, text: '' }],
+    blocks: firstBlocks(),
     backCover: { text: '' },
   };
 }

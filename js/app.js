@@ -138,6 +138,8 @@ async function openScript(id, tab) {
     delete doc.body;
     scheduleSave();
   }
+  // 以前に作ったまま何も書いていない作品も、柱から書きはじめられるようにする
+  if (isBlankBody(doc.blocks)) doc.blocks = firstBlocks();
   localStorage.setItem('lastOpened', id);
   cur = 0;
   fillEditor();
@@ -683,7 +685,7 @@ $('#btn-select-clear').onclick = () => {
 $('#btn-delete-blocks').onclick = () => {
   const n = selected.size;
   doc.blocks = doc.blocks.filter((_, i) => !selected.has(i));
-  if (!doc.blocks.length) doc.blocks.push({ type: null, text: '' });
+  if (!doc.blocks.length) doc.blocks = firstBlocks();
   setSelecting(false);
   cur = Math.min(cur, doc.blocks.length - 1);
   renderBlocks();
