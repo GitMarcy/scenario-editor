@@ -450,12 +450,21 @@ document.addEventListener('selectionchange', () => {
 if (window.visualViewport) {
   const vv = window.visualViewport;
   const root = document.documentElement;
+  let lastTop = 0;
   const fit = () => {
-    // 入力を始めるとページ全体が上に送られるので、編集中は元に戻す
-    if (!$('#view-edit').hidden && (scrollX || scrollY)) window.scrollTo(0, 0);
+    const editing = !$('#view-edit').hidden;
+    // 入力を始めるとページ全体が上に送られる。編集画面を元の位置に戻し、
+    // 送られた分だけ中身を同じだけスクロールして、文字の見える位置は変えない（画面が行ったり来たりしないように）
+    let shift = vv.offsetTop - lastTop;
+    lastTop = vv.offsetTop;
+    if (editing && (scrollX || scrollY)) {
+      shift += scrollY;
+      window.scrollTo(0, 0);
+    }
     root.style.setProperty('--vv-top', vv.offsetTop + 'px');
     root.style.setProperty('--vv-h', vv.height + 'px');
     root.classList.toggle('kb', innerHeight - vv.height > 120);
+    if (editing && shift) panelsEl.scrollTop += shift; // 下の余白が付いてから送る
     if (debugViewport) {
       const r = $('#view-edit').getBoundingClientRect();
       debugViewport.textContent = `vv ${Math.round(vv.offsetTop)}/${Math.round(vv.height)} win ${Math.round(scrollY)}/${innerHeight} edit ${Math.round(r.top)}/${Math.round(r.height)}`;
@@ -467,6 +476,7 @@ if (window.visualViewport) {
   // キーボードが出入りするあいだは、通知が遅れたり来なかったりするので、しばらく毎フレーム合わせる
   let until = 0;
   const watch = () => {
+    fit();
     const loop = () => { fit(); if (performance.now() < until) requestAnimationFrame(loop); };
     if (performance.now() >= until) requestAnimationFrame(loop);
     until = performance.now() + 1000;

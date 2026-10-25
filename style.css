@@ -132,6 +132,7 @@ a.btn { display: inline-block; text-decoration: none; }
   padding: 16px 16px 24px;
 }
 .kb .tabs { display: none; } /* キーボードが出ているあいだはタブをしまう */
+.kb .panels { padding-bottom: 50vh; } /* 最後の段落でも、キーボードの上まで送れるように */
 .field { display: block; margin-bottom: 18px; }
 .field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .field input, .field textarea {
