@@ -351,18 +351,16 @@ function updateCaret() {
 function updateToolbar() {
   const type = doc?.blocks[cur]?.type;
   const types = $('#type-buttons');
-  let changed = false;
-  for (const b of types.children) {
-    if (b.classList.contains('on') !== (b.dataset.type === type)) changed = true;
-    b.classList.toggle('on', b.dataset.type === type);
+  // iPhoneでは色を変えたボタンの文字の上下に前の色が線のように残るので、
+  // 色が変わるボタンは作り直して入れ替える（押したときの処理はツールバー側で受けている）
+  for (const b of [...types.children]) {
+    const on = b.dataset.type === type;
+    if (b.classList.contains('on') === on) continue;
+    const nb = b.cloneNode(true);
+    nb.classList.toggle('on', on);
+    b.replaceWith(nb);
   }
   types.classList.toggle('need', !type);
-  // iPhoneでは色を変えたボタンの文字の上下に前の色が線のように残るので、まるごと描き直させる
-  // （透明度を一瞬だけ変えると、次のフレームで全体が塗り直される）
-  if (changed) {
-    types.style.opacity = '.99';
-    requestAnimationFrame(() => requestAnimationFrame(() => { types.style.opacity = ''; }));
-  }
 }
 
 function focusBlock(i, caret) {

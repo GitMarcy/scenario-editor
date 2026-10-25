@@ -164,7 +164,7 @@ a.btn { display: inline-block; text-decoration: none; }
 
 /* ツールバー */
 .toolbar {
-  position: sticky; top: 0; z-index: 10;
+  position: sticky; top: -16px; z-index: 10; /* スクロール部分の上の余白（16px）の分だけ上に付ける */
   margin: -16px -16px 0; padding: 8px 16px 6px;
   background: var(--bg); border-bottom: 1px solid var(--line);
 }
@@ -186,6 +186,7 @@ a.btn { display: inline-block; text-decoration: none; }
 .types { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; }
 .toolbar .types button {
   border: 0; border-radius: 0; padding: 7px 13px; font-family: var(--ui-font); font-weight: 600;
+  line-height: 20px; /* 端数のない高さにして、iPhoneの塗り残しを防ぐ */
 }
 .toolbar .types button:first-child { border-radius: 8px 0 0 8px; }
 .toolbar .types button:last-child { border-radius: 0 8px 8px 0; }
