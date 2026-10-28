@@ -559,16 +559,20 @@ blocksEl.addEventListener('click', e => {
   focusBlock(el ? indexOf(el) : doc.blocks.length - 1);
 });
 
-// 改行した次の段落の種類。柱・ト書きの次はト書き、セリフの続きはセリフ、
-// セリフを「」」で閉じたあとは種類を選び直す。text は改行位置より前の文字
-function nextType(type, text) {
-  if (type === 'hashira' || type === 'togaki') return 'togaki';
-  if (type === 'serifu' && /」[\s　]*$/.test(text)) return null;
-  return type;
+// 改行した次の段落の種類。柱・ト書き・セリフの次はト書き
+function nextType(type) {
+  return type ? 'togaki' : null;
 }
 
-// セリフの続きは行頭に全角スペースを入れておき、消したら種類を選ぶ前に戻す
-const SERIFU_MARK = '　';
+// セリフの途中で改行したら、閉じていない「」」を補う
+function closeSerifu(i) {
+  const b = doc.blocks[i];
+  if (b.type !== 'serifu' || !b.text.trim() || /」[\s　]*$/.test(b.text)) return;
+  b.text = b.text.replace(/[\s　]+$/, '') + '」';
+  blockTa(i).value = b.text;
+}
+
+// 以前のセリフの続き（行頭が空白）は、空白を消したら種類を選ぶ前に戻す
 const LEAD_SPACE_RE = /^[\s　]/;
 
 // 改行キーで段落を分ける（変換の確定では beforeinput の改行は来ない）
@@ -582,12 +586,12 @@ blocksEl.addEventListener('beforeinput', e => {
   const after = b.text.slice(ta.selectionEnd);
   b.text = b.text.slice(0, ta.selectionStart);
   ta.value = b.text;
+  closeSerifu(i);
   blockChanged(i);
-  const type = nextType(b.type, b.text);
-  const mark = type === 'serifu' ? SERIFU_MARK : '';
-  insertBlocks(i, [{ type, text: mark + after.replace(/^[\s　]+/, '') }]);
+  const type = nextType(b.type);
+  insertBlocks(i, [{ type, text: after.replace(/^[\s　]+/, '') }]);
   if (type) blockEl(i + 1).dataset.auto = '1';
-  focusBlock(i + 1, mark.length);
+  focusBlock(i + 1, 0);
 });
 
 blocksEl.addEventListener('input', e => {
@@ -612,8 +616,10 @@ blocksEl.addEventListener('input', e => {
   blockChanged(i);
   const added = textToBlocks(rest.join('\n'));
   if (!added.length) {
-    const type = nextType(b.type, b.text);
-    added.push({ type, text: type === 'serifu' ? SERIFU_MARK : '' });
+    // 改行だけが入ったとき（改行キーと同じ扱い）
+    closeSerifu(i);
+    blockChanged(i);
+    added.push({ type: nextType(b.type), text: '' });
   }
   insertBlocks(i, added);
   const last = i + added.length;
