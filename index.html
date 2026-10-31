@@ -228,25 +228,25 @@
       <button data-sync="next">次へ：ログインの流れ ›</button>
     </section>
     <section data-sync-step="2" hidden>
-      <h2>ログインの途中で、Googleの画面が2つ出ます（2/2）</h2>
+      <h2>ログインの途中で、Googleの確認が2つあります（2/2）</h2>
       <ol class="sync-mocks">
         <li>
           <div class="google-mock" aria-hidden="true">
             <span class="g">Google</span>
             <p class="t">このアプリは Google で確認されていません</p>
             <p class="s">招待元のデベロッパーを信頼できる場合のみ、続行してください</p>
-            <span class="ok">続行</span>
+            <div class="btns"><span class="link tap">続行</span><span class="fill">安全なページに戻る</span></div>
           </div>
-          <p class="sheet-note">身内向けの非公開アプリのため表示されます。<b>［続行］</b>を押して続けてください。</p>
+          <p class="sheet-note">身内向けの非公開アプリのため表示されます。<b>左の青い文字の［続行］</b>を押して続けてください（右の「安全なページに戻る」ではありません）。</p>
         </li>
         <li>
           <div class="google-mock" aria-hidden="true">
             <span class="g">Google</span>
-            <p class="t">シナリオエディター が Google アカウントへのアクセスを求めています</p>
-            <p class="s">あなたのアドレス@gmail.com</p>
-            <span class="ok">続行</span>
+            <p class="t">gitmarcy.github.io が Google アカウントへのアクセスを求めています</p>
+            <p class="s">gitmarcy.github.io を信頼できるかどうかをご確認ください</p>
+            <div class="btns"><span class="outline">キャンセル</span><span class="outline tap">次へ</span></div>
           </div>
-          <p class="sheet-note">Googleドライブの中で扱うのは、このアプリが作ったファイルだけです。<b>［続行］</b>を押してください。</p>
+          <p class="sheet-note">Googleドライブの中で扱うのは、このアプリが作ったファイルだけです。<b>右の［次へ］</b>を押してください。</p>
         </li>
       </ol>
       <button data-sync="drive">Googleでログインして同期する</button>

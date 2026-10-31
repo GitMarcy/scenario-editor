@@ -439,9 +439,16 @@ ul.sheet-note li.important { list-style: none; margin: 8px 0 8px -1.3em; padding
 .google-mock .g { font-size: 11px; color: #5f6368; }
 .google-mock .t { margin: 2px 0 4px; font-size: 14px; font-weight: 600; }
 .google-mock .s { margin: 0 0 8px; color: #5f6368; }
-.google-mock .ok {
-  display: block; width: max-content; margin-left: auto; padding: 5px 14px; border-radius: 16px;
-  background: #1a73e8; color: #fff; font-weight: 600; box-shadow: 0 0 0 3px rgba(26, 115, 232, .3);
+.google-mock .btns { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0 18px; }
+.google-mock .btns span { padding: 5px 14px; border-radius: 16px; font-weight: 600; white-space: nowrap; }
+.google-mock .link { color: #1a73e8; padding-left: 4px; padding-right: 4px; }
+.google-mock .fill { background: #1a73e8; color: #fff; }
+.google-mock .outline { border: 1px solid #747775; color: #1a73e8; background: #fff; }
+/* 押すところに赤い丸と「ここを押す」を付ける（白地の上なので色は固定） */
+.google-mock .tap { position: relative; outline: 2px solid #d23b2a; outline-offset: 3px; }
+.google-mock .tap::after {
+  content: "ここを押す"; position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%);
+  color: #d23b2a; font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap;
 }
 /* ルビの入力ではキーボードが出るので、下ではなく見えている範囲の上に出す */
 #ruby-dialog { margin: calc(var(--vv-top, 0px) + env(safe-area-inset-top) + 12px) auto auto; }
