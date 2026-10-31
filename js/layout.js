@@ -26,10 +26,12 @@ function toFull(s) {
     .replace(/ /g, '　');
 }
 
-// 1段落を行に折り返す。各行は { indent, chars }
+// 1段落を行に折り返す。各行は { indent, chars, rubies }。
+// rubies は { at（行の何文字目から）, len（親文字の字数）, ruby }
 function wrap(text, first, rest, width = COLS) {
-  const chars = Array.from(text);
-  if (!chars.length) return [{ indent: first, chars: [] }];
+  const { text: plain, rubies } = parseRuby(text);
+  const chars = Array.from(plain);
+  if (!chars.length) return [{ indent: first, chars: [], rubies: [] }];
   const lines = [];
   let i = 0;
   let indent = first;
@@ -40,12 +42,29 @@ function wrap(text, first, rest, width = COLS) {
       while (hang < 2 && end < chars.length && HANG.has(chars[end])) { end++; hang++; }
       while (end < chars.length && end - i > 1 && NO_START.has(chars[end])) end--;
       while (end < chars.length && end - i > 1 && NO_END.has(chars[end - 1])) end--;
+      // ルビの親文字の途中では折り返さない（1行に収まらない長さのときだけ折る）
+      const r = rubies.find(r => r.at > i && r.at < end && end < r.at + r.len);
+      if (r) end = r.at;
     }
-    lines.push({ indent, chars: chars.slice(i, end) });
+    lines.push({ indent, chars: chars.slice(i, end), rubies: lineRubies(rubies, i, end) });
     i = end;
     indent = rest;
   }
   return lines;
+}
+
+// start〜end の文字に掛かるルビ。行をまたぐルビは、ふりがなを親文字の字数の割合で分ける
+function lineRubies(rubies, start, end) {
+  const out = [];
+  for (const r of rubies) {
+    const s = Math.max(r.at, start), e = Math.min(r.at + r.len, end);
+    if (s >= e) continue;
+    const kana = Array.from(r.ruby);
+    const part = x => Math.round((x - r.at) / r.len * kana.length);
+    const ruby = kana.slice(part(s), part(e)).join('');
+    if (ruby) out.push({ at: s - start, len: e - s, ruby });
+  }
+  return out;
 }
 
 // 各行に、元のブロック番号（block）とブロック内の何行目か（row）を付ける。
@@ -56,7 +75,7 @@ function layoutBody(blocks) {
     const [first, rest] = INDENT[p.cont ? 'serifuCont' : p.type];
     let row = 0;
     if (p.type === 'hashira' && lines.length % (LINES_PER_HALF * 2) !== 0) {
-      lines.push({ indent: 0, chars: [], type: 'blank', block: p.block, row: row++ });
+      lines.push({ indent: 0, chars: [], rubies: [], type: 'blank', block: p.block, row: row++ });
     }
     for (const l of wrap(toFull(p.text), first, rest)) lines.push({ ...l, type: p.type, block: p.block, row: row++ });
   }
@@ -66,7 +85,7 @@ function layoutBody(blocks) {
 function layoutCharacters(characters) {
   const entries = (characters || []).map(characterLine).filter(Boolean);
   if (!entries.length) return [];
-  const lines = [{ indent: 3, chars: [...'人　物'] }];
+  const lines = [{ indent: 3, chars: [...'人　物'], rubies: [] }];
   for (const e of entries) lines.push(...wrap(toFull(e), 1, 2));
   return lines;
 }
@@ -105,4 +124,14 @@ function buildSheets(doc) {
 
 function lineToString(l) {
   return '　'.repeat(l.indent) + l.chars.join('');
+}
+
+// 文字をHTMLにする。ルビの付いた文字は tag(親文字, ふりがな) で囲む
+function rubyHtml(chars, rubies, tag) {
+  let html = '', k = 0;
+  for (const r of rubies) {
+    html += escapeHtml(chars.slice(k, r.at).join('')) + tag(escapeHtml(chars.slice(r.at, r.at + r.len).join('')), escapeHtml(r.ruby));
+    k = r.at + r.len;
+  }
+  return html + escapeHtml(chars.slice(k).join(''));
 }

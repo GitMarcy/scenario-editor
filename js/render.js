@@ -6,6 +6,8 @@ const G = {
   pitchX: 11.4,               // 行の間隔
   pitchY: 7.1,                // 字の間隔
   font: 4.6,                  // 本文の文字サイズ
+  ruby: 2.3,                  // ルビの文字サイズ（親文字の右に付ける）
+  rubyGap: 0.7,               // 親文字とルビの間
   halfTop: 28.75,             // 紙の上端から半ページ枠の上端まで
   halfPad: 10,                // 半ページ枠の上端から1字目のマスまで
 };
@@ -45,6 +47,12 @@ function renderHalf(half, { grid = false } = {}) {
       cell.textContent = ch;
       box.appendChild(cell);
     });
+    for (const r of line.rubies) {
+      const { left, top } = rubyBox(x, line.indent, r);
+      const rt = el('div', 'ruby', { left: mm(left), top: mm(G.halfPad + top) });
+      rt.textContent = r.ruby;
+      box.appendChild(rt);
+    }
   });
   if (half.nombre != null) {
     const n = el('div', 'nombre', { top: mm(G.nombreY) });
@@ -52,6 +60,15 @@ function renderHalf(half, { grid = false } = {}) {
     box.appendChild(n);
   }
   return box;
+}
+
+// ルビの位置（x＝行の左端、半ページ枠の1字目のマスから）。親文字の右に、親文字の長さの中央に揃えて置く
+function rubyBox(x, indent, r) {
+  const n = Array.from(r.ruby).length;
+  return {
+    left: x + (G.pitchX + G.font) / 2 + G.rubyGap,
+    top: (indent + r.at + r.len / 2) * G.pitchY - n * G.ruby / 2,
+  };
 }
 
 // 表紙・裏表紙の縦書きテキスト。x=1行目の中心, top=1字目の上端,

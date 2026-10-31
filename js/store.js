@@ -70,11 +70,11 @@ function normalizeImported(data) {
   };
 }
 
-// 人物は { name, age, job, label } の配列。label は本文で使う名前の表記（空なら name のまま）。
+// 人物（emptyCharacter の形）の配列にする。足りない項目は空にし、
 // 旧形式（1行に1人のテキスト）は各行を分解して変換する
 function normalizeCharacters(v) {
   if (Array.isArray(v)) {
-    return v.map(c => ({ name: String(c?.name || ''), age: String(c?.age || ''), job: String(c?.job || ''), label: String(c?.label || '') }));
+    return v.map(c => Object.fromEntries(Object.keys(emptyCharacter()).map(k => [k, String(c?.[k] || '')])));
   }
   return String(v || '').split('\n').map(l => l.trim()).filter(Boolean).map(parseCharacterLine);
 }

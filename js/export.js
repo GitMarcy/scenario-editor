@@ -34,14 +34,23 @@ function drawSheet(sheet, k) {
     sheet.halves.forEach((half, h) => {
       const ox = h === 0 ? G.rightHalfX : G.leftHalfX;
       const oy = G.halfTop;
-      ctx.font = `${G.font * k}px ${FONT}`;
       half.lines.forEach((line, c) => {
-        const cx = ox + G.halfW - (c + 0.5) * G.pitchX;
+        const x = G.halfW - (c + 1) * G.pitchX;
+        const cx = ox + x + 0.5 * G.pitchX;
+        ctx.font = `${G.font * k}px ${FONT}`;
         line.chars.forEach((ch, i) => {
           if (ch === '　') return;
           const cy = oy + G.halfPad + (line.indent + i + 0.5) * G.pitchY;
           drawChar(ctx, ch, cx * k, cy * k, G.font * k);
         });
+        ctx.font = `${G.ruby * k}px ${FONT}`;
+        for (const r of line.rubies) {
+          const { left, top } = rubyBox(x, line.indent, r);
+          Array.from(r.ruby).forEach((ch, i) => {
+            const cy = oy + G.halfPad + top + (i + 0.5) * G.ruby;
+            drawChar(ctx, ch, (ox + left + G.ruby / 2) * k, cy * k, G.ruby * k);
+          });
+        }
       });
       if (half.nombre != null) {
         ctx.font = `${3.6 * k}px ${FONT}`;
@@ -147,7 +156,8 @@ function gridText(doc) {
   return layoutBody(doc.blocks).map(lineToString).join('\n');
 }
 
-// 段落ごと：テキストは1字目だけ字下げ、HTMLはぶら下げインデントで2行目以降も揃える
+// 段落ごと：テキストは1字目だけ字下げ、HTMLはぶら下げインデントで2行目以降も揃える。
+// ルビはテキストでは ｜親文字《ふりがな》 のまま、HTMLでは <ruby> にする
 function paragraphContent(doc) {
   const paras = bodyParas(doc.blocks).map(p => ({ ...p, text: toFull(p.text) }));
   const plain = paras.map(p => (p.type === 'togaki' ? '　　　' : p.cont ? '　' : '') + p.text).join('\n');
@@ -159,7 +169,11 @@ function paragraphContent(doc) {
     none: 'margin:0',
   };
   const html = '<div style="font-family:\'游明朝\',\'Yu Mincho\',\'ヒラギノ明朝 ProN\',serif">' +
-    paras.map(p => `<p style="${style[p.cont ? 'serifuCont' : p.type]}">${escapeHtml(p.text)}</p>`).join('') + '</div>';
+    paras.map(p => {
+      const { text, rubies } = parseRuby(p.text);
+      const body = rubyHtml(Array.from(text), rubies, (base, ruby) => `<ruby>${base}<rt>${ruby}</rt></ruby>`);
+      return `<p style="${style[p.cont ? 'serifuCont' : p.type]}">${body}</p>`;
+    }).join('') + '</div>';
   return { plain, html };
 }
 

@@ -138,10 +138,10 @@ async function openScript(id, tab) {
     delete doc.body;
     scheduleSave();
   }
-  if (!Array.isArray(doc.characters)) {
-    doc.characters = normalizeCharacters(doc.characters);
-    scheduleSave();
-  }
+  // 旧形式の人物表を変換し、ふりがなの欄ができる前に作った人物にも空の欄を足しておく
+  const oldCharacters = !Array.isArray(doc.characters);
+  doc.characters = normalizeCharacters(doc.characters);
+  if (oldCharacters) scheduleSave();
   // 以前に作ったまま何も書いていない作品も、柱から書きはじめられるようにする
   if (isBlankBody(doc.blocks)) doc.blocks = firstBlocks();
   localStorage.setItem('lastOpened', id);
@@ -193,17 +193,23 @@ const charList = $('#char-list');
 
 function renderCharacters() {
   // 人物が一人もいないときは、すぐ書きはじめられるよう空の欄を1人分出しておく（空の欄は台本には出ない）
-  if (!doc.characters.length) doc.characters.push({ name: '', age: '', job: '', label: '' });
+  if (!doc.characters.length) doc.characters.push(emptyCharacter());
   const n = doc.characters.length;
   charList.replaceChildren(...doc.characters.map((c, i) => {
     const el = document.createElement('div');
     el.className = 'char';
     el.innerHTML = `<div class="char-row">
         <label class="field"><span>名前</span><input data-k="name" type="text" placeholder="田中蓮"></label>
+        <label class="field"><span>ふりがな</span><input data-k="nameRuby" type="text" placeholder="たなかれん"></label>
+      </div>
+      <div class="char-row age-job">
         <label class="field"><span>年齢</span><input data-k="age" type="text" placeholder="２５"></label>
         <label class="field"><span>職業</span><input data-k="job" type="text" placeholder="フリーター"></label>
       </div>
-      <label class="field"><span>名前の表記</span><input data-k="label" type="text"></label>
+      <div class="char-row">
+        <label class="field"><span>名前の表記</span><input data-k="label" type="text"></label>
+        <label class="field"><span>ふりがな</span><input data-k="labelRuby" type="text"></label>
+      </div>
       <div class="char-actions">
         <span class="num">${i + 1}</span>
         <button data-act="up" aria-label="上へ移動" ${i === 0 ? 'disabled' : ''}>↑</button>
@@ -211,17 +217,24 @@ function renderCharacters() {
         <button data-act="del" class="del">削除</button>
       </div>`;
     for (const input of el.querySelectorAll('input')) input.value = c[input.dataset.k];
-    el.querySelector('[data-k="label"]').placeholder = c.name || '田中';
+    updateCharPlaceholders(el, c);
     return el;
   }));
+}
+
+// 名前の表記が空なら名前（とそのふりがな）を使うので、それを薄く出しておく
+function updateCharPlaceholders(el, c) {
+  el.querySelector('[data-k="label"]').placeholder = c.name || '田中';
+  el.querySelector('[data-k="labelRuby"]').placeholder = (!c.label && c.nameRuby) || 'たなか';
 }
 
 charList.addEventListener('input', e => {
   const k = e.target.dataset.k;
   if (!k) return;
-  const i = [...charList.children].indexOf(e.target.closest('.char'));
+  const el = e.target.closest('.char');
+  const i = [...charList.children].indexOf(el);
   doc.characters[i][k] = e.target.value;
-  if (k === 'name') e.target.closest('.char').querySelector('[data-k="label"]').placeholder = e.target.value || '田中';
+  updateCharPlaceholders(el, doc.characters[i]);
   updateChips();
   scheduleSave();
 });
@@ -232,7 +245,7 @@ charList.addEventListener('click', e => {
   const i = [...charList.children].indexOf(e.target.closest('.char'));
   const c = doc.characters[i];
   if (act === 'del') {
-    if ((c.name || c.label || c.age || c.job) && !confirm(`「${c.name || c.label || '名前なし'}」を削除しますか？`)) return;
+    if (Object.values(c).some(Boolean) && !confirm(`「${c.name || c.label || '名前なし'}」を削除しますか？`)) return;
     doc.characters.splice(i, 1);
     renderCharacters();
   } else {
@@ -248,7 +261,7 @@ charList.addEventListener('click', e => {
 });
 
 $('#btn-add-char').onclick = () => {
-  doc.characters.push({ name: '', age: '', job: '', label: '' });
+  doc.characters.push(emptyCharacter());
   renderCharacters();
   charList.lastElementChild.querySelector('input').focus();
   markHistoryStep();
@@ -301,7 +314,8 @@ function refreshLayout(all = false, changed = -1) {
     el.classList.toggle('gap', gs.length > 0 && lines[gs[0]].type === 'blank');
     if (all || i === changed) {
       el.querySelector('.render').innerHTML = gs.map(g =>
-        `<div style="padding-left:${lines[g].indent}em">${escapeHtml(lines[g].chars.join(''))}</div>`).join('');
+        `<div style="padding-left:${lines[g].indent}em">${rubyHtml(lines[g].chars, lines[g].rubies,
+          (base, ruby) => `<span class="rb">${base}<span class="rt">${ruby}</span></span>`)}</div>`).join('');
     }
     // 半ページ（10行）ごとの区切り。偶数ノンブルの次からA4の次の紙
     const marks = gs.filter(g => g % LINES_PER_HALF === 0).map(g => {
@@ -339,7 +353,7 @@ function updateCaret() {
   if (g < 0) g = lines.length;
   const gs = rows[cur] || [];
   if (ta && gs.length) {
-    const c = ta.selectionStart;
+    const c = parseRuby(ta.value.slice(0, ta.selectionStart)).text.length; // ルビの記号は数えない
     let acc = 0;
     g = gs[gs.length - 1];
     for (const k of gs) {
@@ -673,14 +687,23 @@ blocksEl.addEventListener('keydown', e => {
 
 // ---------- ツールバー ----------
 
+// 名前のボタン。人物表にある名前のルビは、人物表のふりがなに合わせる
 function updateChips() {
   if (!doc) return;
-  const names = [...new Set([...serifuNames(doc.blocks), ...characterNames(doc.characters)])];
-  $('#name-chips').replaceChildren(...names.map(n => {
+  const names = new Map();
+  for (const n of serifuNames(doc.blocks)) names.set(n.name, n.ruby);
+  for (const n of characterNames(doc.characters)) names.set(n.name, n.ruby);
+  $('#name-chips').replaceChildren(...[...names].map(([name, ruby]) => {
     const b = document.createElement('button');
     b.dataset.insert = 'name';
-    b.dataset.name = n;
-    b.textContent = n;
+    b.dataset.name = name;
+    b.dataset.ruby = ruby;
+    if (ruby) {
+      b.className = 'has-ruby';
+      b.innerHTML = `<ruby>${escapeHtml(name)}<rt>${escapeHtml(ruby)}</rt></ruby>`;
+    } else {
+      b.textContent = name;
+    }
     return b;
   }));
 }
@@ -707,8 +730,9 @@ $('#toolbar').addEventListener('click', e => {
 
   const kind = b.dataset.insert;
   if (kind === 'kakko') insertText('「」', 1);
+  else if (kind === 'ruby') openRuby();
   else if (kind === 'name') {
-    const s = b.dataset.name + '「」';
+    const s = rubyMarkup(b.dataset.name, b.dataset.ruby) + '「」';
     startBlock('serifu', s, s.length - 1);
   } else if (kind === 'batsu') startBlock('togaki', '　×　　　×　　　×');
   else insertText(kind);
@@ -727,6 +751,56 @@ function startBlock(type, text, caret = text.length) {
   blockTa(i).value = '';
   insertText(text, caret);
 }
+
+// ---------- ルビ ----------
+// 選んだ文字を ｜親文字《ふりがな》 にする。ルビの付いた文字を選ぶ（カーソルを置く）と、直したり外したりできる
+
+let rubyTarget = null;
+
+// start〜end に掛かっている（カーソルなら中にある）ルビ
+function rubyAt(text, start, end) {
+  for (const m of text.matchAll(RUBY_RE)) {
+    const e = m.index + m[0].length;
+    if (start < e && (start === end ? start > m.index : end > m.index)) return m;
+  }
+  return null;
+}
+
+function openRuby() {
+  const ta = blockTa(cur);
+  const { selectionStart: s, selectionEnd: e } = ta;
+  const m = rubyAt(ta.value, s, e);
+  if (m) {
+    rubyTarget = { i: cur, start: m.index, end: m.index + m[0].length, base: m[1] ?? m[3], ruby: m[2] ?? m[4] };
+  } else {
+    // 選んだ範囲の前後の空白は親文字に含めない
+    const sel = ta.value.slice(s, e);
+    const base = sel.trim();
+    if (!base) return toast('ルビを付ける文字を選んでから押してください');
+    if (/[｜|《》]/.test(base)) return toast('ルビの記号（｜《》）を含まないように選んでください');
+    const start = s + sel.indexOf(base);
+    rubyTarget = { i: cur, start, end: start + base.length, base, ruby: '' };
+  }
+  $('#ruby-base').textContent = rubyTarget.base;
+  $('#ruby-input').value = rubyTarget.ruby;
+  $('#ruby-remove').hidden = !m;
+  $('#ruby-dialog').returnValue = '';
+  $('#ruby-dialog').showModal();
+}
+
+$('#ruby-dialog').addEventListener('close', () => {
+  const t = rubyTarget;
+  rubyTarget = null;
+  const ta = t && blockTa(t.i);
+  if (!ta) return;
+  ta.focus();
+  const act = $('#ruby-dialog').returnValue;
+  const ruby = $('#ruby-input').value.replace(/[｜|《》\s　]/g, '');
+  if (act !== 'ok' && act !== 'remove') return ta.setSelectionRange(t.start, t.end);
+  ta.setRangeText(act === 'ok' ? rubyMarkup(t.base, ruby) : t.base, t.start, t.end, 'end');
+  markHistoryStep();
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+});
 
 // ---------- 段落をまとめて削除 ----------
 

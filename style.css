@@ -148,7 +148,8 @@ a.btn { display: inline-block; text-decoration: none; }
   padding: 12px; margin-bottom: 12px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--surface);
 }
-.char-row { display: grid; grid-template-columns: 1.3fr 3.6em 1.3fr; gap: 8px; }
+.char-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.char-row.age-job { grid-template-columns: 3.6em 1fr; }
 .char .field { margin-bottom: 10px; min-width: 0; }
 .char .field span { font-size: 12px; margin-bottom: 4px; }
 .char .field input { font-size: 16px; padding: 8px 10px; }
@@ -179,6 +180,8 @@ a.btn { display: inline-block; text-decoration: none; }
 }
 .toolbar .chips { display: contents; }
 .toolbar .chips button { border-color: var(--badge-serifu); color: var(--badge-serifu); }
+.toolbar .chips button.has-ruby { padding-top: 0; padding-bottom: 2px; }
+.toolbar .chips rt { font-size: 9px; line-height: 1; }
 
 /* 種類の選択 */
 /* 角の丸めは overflow: hidden で切り抜かず、両端のボタンに付ける。
@@ -255,6 +258,12 @@ a.btn { display: inline-block; text-decoration: none; }
 .t-hashira .cells { background-color: var(--hashira); }
 .t-serifu .cells { background-color: var(--serifu); }
 .render > div { white-space: pre; height: var(--lh); }
+/* ルビは親文字の上の、行の空きに小さく出す */
+.render .rb { position: relative; }
+.render .rt {
+  position: absolute; left: 50%; bottom: 88%; transform: translateX(-50%);
+  font-size: .42em; line-height: 1; white-space: nowrap;
+}
 .cells textarea {
   position: absolute; left: 0; top: 0; z-index: 1;
   width: 20.5em; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 0;
@@ -344,6 +353,11 @@ a.btn { display: inline-block; text-decoration: none; }
   writing-mode: vertical-rl; text-orientation: mixed;
   line-height: 11.4mm; font-size: 4.6mm; text-align: center;
 }
+.ruby {
+  position: absolute; width: 2.3mm;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  line-height: 2.3mm; font-size: 2.3mm; white-space: nowrap;
+}
 .nombre {
   position: absolute; left: 0; width: 100%;
   font-size: 3.6mm; line-height: 3.6mm; text-align: center;
@@ -371,6 +385,7 @@ a.btn { display: inline-block; text-decoration: none; }
 }
 .sheet-dialog .danger { color: #d23b2a; }
 .sheet-dialog .cancel { font-weight: 600; color: var(--text); }
+.sheet-dialog form .field { margin: 0 4px 12px; }
 
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 50;
