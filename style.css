@@ -421,6 +421,8 @@ ul.sheet-note li { margin-bottom: 4px; }
 .sync-flow .folder { padding: 8px 10px; border-radius: 10px; border: 2px solid var(--accent); line-height: 1.4; }
 .sync-flow .folder b { display: block; font-size: 12px; word-break: keep-all; }
 .sync-flow .folder small { display: block; white-space: nowrap; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.sync-flow .folder .drive { margin: 0 0 2px; font-weight: 600; }
+ul.sheet-note li.important { list-style: none; margin: 8px 0 8px -1.3em; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--accent); color: var(--text); font-weight: 600; }
 .sync-mocks { margin: 0 8px; padding: 0; list-style: none; counter-reset: mock; }
 .sync-mocks > li { counter-increment: mock; position: relative; padding-left: 28px; }
 .sync-mocks > li::before {

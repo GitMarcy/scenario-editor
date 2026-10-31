@@ -174,8 +174,8 @@ syncInfo.onchange = renderSync;
 function openSyncDialog() {
   loadGis().catch(() => {});
   renderSync();
-  showSyncStep(1);
   $('#sync-dialog').showModal();
+  showSyncStep(1); // 開くとボタンにフォーカスが移って下までスクロールするので、開いてから上に戻す
 }
 
 // 同期を始める前の案内は2ページ（同期のしくみ → ログインの途中で出る画面）
