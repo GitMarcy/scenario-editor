@@ -1,4 +1,4 @@
-// 書き出し：PDF（画像）、印刷、Word用コピー、バックアップ
+// 保存・コピー：PDF（画像）、印刷、Word用・プレーンテキストのコピー、編集データ（.json）
 
 
 const FONT = '"Hiragino Mincho ProN", "Hiragino Mincho Pro", "Yu Mincho", "YuMincho", serif';
@@ -150,30 +150,21 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-// 原稿用紙どおり：20字で改行し、字下げは全角スペース
-function gridText(doc) {
-  return layoutBody(doc.blocks).map(lineToString).join('\n');
+// 原稿用紙どおり：20字で改行し、字下げは全角スペース。
+// ルビはテキストでは ｜親文字《ふりがな》、HTML（Wordに貼るとき）では <ruby> にする
+function gridContent(doc) {
+  const lines = layoutBody(doc.blocks);
+  const plain = lines.map(l => '　'.repeat(l.indent) +
+    rubyHtml(l.chars, l.rubies, (base, _, r) => `｜${base}《${r.ruby}》`, ch => ch)).join('\n');
+  const html = '<div style="font-family:\'游明朝\',\'Yu Mincho\',\'ヒラギノ明朝 ProN\',serif">' +
+    lines.map(l => `<p style="margin:0">${'　'.repeat(l.indent)}${
+      rubyHtml(l.chars, l.rubies, (base, ruby) => `<ruby>${base}<rt style="font-size:6pt">${ruby}</rt></ruby>`) || '　'}</p>`).join('') + '</div>';
+  return { plain, html };
 }
 
-// 段落ごと：テキストは1字目だけ字下げ、HTMLはぶら下げインデントで2行目以降も揃える。
-// ルビはテキストでは ｜親文字《ふりがな》 のまま、HTMLでは <ruby> にする
-function paragraphContent(doc) {
-  const paras = bodyParas(doc.blocks).map(p => ({ ...p, text: toFull(p.text) }));
-  const plain = paras.map(p => (p.type === 'togaki' ? '　　　' : p.cont ? '　' : '') + p.text).join('\n');
-  const style = {
-    hashira: 'margin:0 0 0 1em;text-indent:-1em',
-    togaki: 'margin:0 0 0 3em',
-    serifu: 'margin:0 0 0 1em;text-indent:-1em',
-    serifuCont: 'margin:0 0 0 1em',
-    none: 'margin:0',
-  };
-  const html = '<div style="font-family:\'游明朝\',\'Yu Mincho\',\'ヒラギノ明朝 ProN\',serif">' +
-    paras.map(p => {
-      const { text, rubies } = parseRuby(p.text);
-      const body = rubyHtml(Array.from(text), rubies, (base, ruby) => `<ruby>${base}<rt>${ruby}</rt></ruby>`);
-      return `<p style="${style[p.cont ? 'serifuCont' : p.type]}">${body}</p>`;
-    }).join('') + '</div>';
-  return { plain, html };
+// プレーンテキスト：本文だけを段落ごとに1行。字下げもルビも付けない
+function plainText(doc) {
+  return bodyParas(doc.blocks).map(p => parseRuby(toFull(p.text)).text).join('\n');
 }
 
 async function copyToClipboard(plain, html) {

@@ -93,6 +93,8 @@ $('#btn-new').onclick = async () => {
   openScript(d.id, 'cover');
 };
 
+$('#btn-import').onclick = () => $('#import-file').click();
+
 $('#import-file').onchange = async e => {
   const file = e.target.files[0];
   e.target.value = '';
@@ -103,7 +105,7 @@ $('#import-file').onchange = async e => {
     toast('読み込みました');
     showList();
   } catch {
-    toast('読み込めませんでした（.json のバックアップを選んでください）', 4000);
+    toast('読み込めませんでした（編集データの .json を選んでください）', 4000);
   }
 };
 
@@ -1193,7 +1195,7 @@ window.addEventListener('resize', () => {
   if (doc && !$('[data-panel="preview"]').hidden) renderPreview();
 });
 
-// ---------- 書き出し ----------
+// ---------- 保存・コピー ----------
 
 $('#btn-export').onclick = () => $('#export-dialog').showModal();
 
@@ -1221,12 +1223,12 @@ $('#export-dialog').addEventListener('click', async e => {
   try {
     if (action === 'print') printDoc(doc);
     else if (action === 'copy-grid') {
-      await copyToClipboard(gridText(doc));
-      toast('コピーしました（20字改行）');
-    } else if (action === 'copy-para') {
-      const { plain, html } = paragraphContent(doc);
+      const { plain, html } = gridContent(doc);
       await copyToClipboard(plain, html);
-      toast('コピーしました（段落ごと）');
+      toast('コピーしました（20字改行）');
+    } else if (action === 'copy-plain') {
+      await copyToClipboard(plainText(doc));
+      toast('コピーしました（プレーンテキスト）');
     } else if (action === 'backup') await exportBackup(doc);
   } catch (err) {
     toast('失敗しました：' + err.message, 4000);

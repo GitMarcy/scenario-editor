@@ -62,6 +62,7 @@ button { font: inherit; color: inherit; }
 }
 .btn.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .btn.ghost { color: var(--accent); }
+.btn.bold { font-weight: 600; }
 a.btn { display: inline-block; text-decoration: none; }
 .notice a { color: var(--accent); }
 
