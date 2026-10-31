@@ -394,6 +394,8 @@ a.btn { display: inline-block; text-decoration: none; }
 .sheet-dialog .danger { color: #d23b2a; }
 .sheet-dialog .cancel { font-weight: 600; color: var(--text); }
 .sheet-dialog form .field { margin: 0 4px 12px; }
+/* ルビの入力ではキーボードが出るので、下ではなく見えている範囲の上に出す */
+#ruby-dialog { margin: calc(var(--vv-top, 0px) + env(safe-area-inset-top) + 12px) auto auto; }
 
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 50;
