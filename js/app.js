@@ -174,7 +174,14 @@ syncInfo.onchange = renderSync;
 function openSyncDialog() {
   loadGis().catch(() => {});
   renderSync();
+  showSyncStep(1);
   $('#sync-dialog').showModal();
+}
+
+// 同期を始める前の案内は2ページ（同期のしくみ → ログインの途中で出る画面）
+function showSyncStep(n) {
+  $$('[data-sync-step]').forEach(el => { el.hidden = el.dataset.syncStep !== String(n); });
+  $('#sync-dialog').scrollTop = 0;
 }
 $('#btn-sync-setup').onclick = openSyncDialog;
 
@@ -194,6 +201,7 @@ function reconnect() {
 $('#sync-dialog').addEventListener('click', e => {
   const action = e.target.dataset.sync;
   if (!action) return;
+  if (action === 'next' || action === 'back') return showSyncStep(action === 'next' ? 2 : 1);
   $('#sync-dialog').close();
   if (action === 'drive') {
     connectDrive().then(() => {

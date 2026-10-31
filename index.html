@@ -207,17 +207,57 @@
 
 <!-- 保存方法 -->
 <dialog id="sync-dialog" class="sheet-dialog">
-  <h2>保存方法</h2>
-  <div class="sheet-note" data-sync-mode="local">
-    <p>Googleでログインすると、台本があなたのGoogleドライブ（マイドライブの「シナリオエディター（同期）」フォルダ）にも保存され、PCとスマホで自動で同じになります。</p>
-    <p>見られるのはあなたのアカウントだけです。このアプリを作った人を含め、ほかの人には見えません。</p>
-    <p>編集データ（.json）で持ち運んでいた作品は、端末ごとに別の作品として2つ並ぶことがあります。古いほうは一覧の［…］→「削除」で整理してください。</p>
+  <!-- 同期を始める前の案内（2ページ）。Googleの警告画面に驚かないよう、押す前に見せておく -->
+  <div data-sync-mode="local">
+    <section data-sync-step="1">
+      <h2>Googleドライブで同期すると（1/2）</h2>
+      <div class="sync-flow" aria-hidden="true">
+        <span class="dev">PC</span>
+        <span class="arrow">⇄</span>
+        <span class="folder"><b>📁 シナリオ<wbr>エディター<wbr>（同期）</b><small>タイトル.json<br>タイトル.json …</small></span>
+        <span class="arrow">⇄</span>
+        <span class="dev">スマホ</span>
+      </div>
+      <ul class="sheet-note">
+        <li>マイドライブにこのフォルダが<b>自動でできて</b>、作品が1つずつ保存されます。同じGoogleアカウントでログインしたPCとスマホで、自動で同じになります。</li>
+        <li>フォルダの<b>名前や場所を変えても</b>、そのまま同期が続きます。</li>
+        <li>見られるのはあなたのアカウントだけです。このアプリを作った人にも見えません。</li>
+        <li>使えるのは、<b>作った人に登録してもらったGoogleアカウントだけ</b>です（テスト中のアプリのため）。まだの人は、使いたいGmailアドレスを作った人に伝えてください。</li>
+        <li>編集データ（.json）で持ち運んでいた作品は、2つ並ぶことがあります。古いほうは［…］→「削除」で整理してください。</li>
+      </ul>
+      <button data-sync="next">次へ：ログインの流れ ›</button>
+    </section>
+    <section data-sync-step="2" hidden>
+      <h2>ログインの途中で、Googleの画面が2つ出ます（2/2）</h2>
+      <ol class="sync-mocks">
+        <li>
+          <div class="google-mock" aria-hidden="true">
+            <span class="g">Google</span>
+            <p class="t">このアプリは Google で確認されていません</p>
+            <p class="s">招待元のデベロッパーを信頼できる場合のみ、続行してください</p>
+            <span class="ok">続行</span>
+          </div>
+          <p class="sheet-note">身内向けで、Googleの審査を受けていないために出ます。<b>［続行］</b>を押してください。</p>
+        </li>
+        <li>
+          <div class="google-mock" aria-hidden="true">
+            <span class="g">Google</span>
+            <p class="t">シナリオエディター が Google アカウントへのアクセスを求めています</p>
+            <p class="s">あなたのアドレス@gmail.com</p>
+            <span class="ok">続行</span>
+          </div>
+          <p class="sheet-note">Googleドライブの中で、このアプリが作ったファイルだけを扱う許可です。<b>［続行］</b>を押してください。</p>
+        </li>
+      </ol>
+      <button data-sync="drive">Googleでログインして同期する</button>
+      <button data-sync="back">‹ 戻る</button>
+    </section>
   </div>
+  <h2 data-sync-mode="drive">保存方法</h2>
   <div class="sheet-note" data-sync-mode="drive">
     <p>Googleドライブ<span id="sync-account"></span>と同期しています。</p>
     <p>同期をやめても、台本はこの端末に残ります。</p>
   </div>
-  <button data-sync="drive" data-sync-mode="local">Googleでログインして同期する</button>
   <button data-sync="now" data-sync-mode="drive">今すぐ同期</button>
   <button data-sync="local" data-sync-mode="drive" class="danger">同期をやめる（この端末だけに保存）</button>
   <button data-sync="close" class="cancel">閉じる</button>

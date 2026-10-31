@@ -409,6 +409,38 @@ a.btn { display: inline-block; text-decoration: none; }
 .sheet-dialog form .field { margin: 0 4px 12px; }
 .sheet-note { margin: 0 8px 12px; font-size: 13px; line-height: 1.7; color: var(--muted); }
 .sheet-note p { margin: 0 0 6px; }
+.sheet-note b { color: var(--text); }
+ul.sheet-note { padding-left: 1.3em; }
+ul.sheet-note li { margin-bottom: 4px; }
+
+/* 同期を始める前の案内。説明が長いので、スマホでは中をスクロールする */
+#sync-dialog { max-height: calc(100dvh - 24px); overflow-y: auto; }
+.sync-flow { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 4px 8px 14px; font-size: 13px; text-align: center; }
+.sync-flow .dev { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; white-space: nowrap; }
+.sync-flow .arrow { color: var(--accent); font-size: 18px; font-weight: 700; }
+.sync-flow .folder { padding: 8px 10px; border-radius: 10px; border: 2px solid var(--accent); line-height: 1.4; }
+.sync-flow .folder b { display: block; font-size: 12px; word-break: keep-all; }
+.sync-flow .folder small { display: block; white-space: nowrap; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.sync-mocks { margin: 0 8px; padding: 0; list-style: none; counter-reset: mock; }
+.sync-mocks > li { counter-increment: mock; position: relative; padding-left: 28px; }
+.sync-mocks > li::before {
+  content: counter(mock); position: absolute; left: 0; top: 2px;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
+  font-size: 12px; font-weight: 700; line-height: 20px; text-align: center;
+}
+.sync-mocks .sheet-note { margin: 6px 0 14px; }
+/* Googleの画面の見本。ダークモードでも本物に近い白地のまま */
+.google-mock {
+  padding: 10px 12px 12px; border-radius: 8px; border: 1px solid #dadce0;
+  background: #fff; color: #202124; font-size: 12px; line-height: 1.5; text-align: left;
+}
+.google-mock .g { font-size: 11px; color: #5f6368; }
+.google-mock .t { margin: 2px 0 4px; font-size: 14px; font-weight: 600; }
+.google-mock .s { margin: 0 0 8px; color: #5f6368; }
+.google-mock .ok {
+  display: block; width: max-content; margin-left: auto; padding: 5px 14px; border-radius: 16px;
+  background: #1a73e8; color: #fff; font-weight: 600; box-shadow: 0 0 0 3px rgba(26, 115, 232, .3);
+}
 /* ルビの入力ではキーボードが出るので、下ではなく見えている範囲の上に出す */
 #ruby-dialog { margin: calc(var(--vv-top, 0px) + env(safe-area-inset-top) + 12px) auto auto; }
 
