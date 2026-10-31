@@ -4,7 +4,7 @@
 
 // Google Cloud で作った OAuth クライアントID（ウェブアプリケーション）。公開してよい値。
 // 空のあいだは同期の入口を出さない
-const GOOGLE_CLIENT_ID = '';
+const GOOGLE_CLIENT_ID = '431779331949-q49bfuej666gs8o7gkb3i727gb48qeg4.apps.googleusercontent.com';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
