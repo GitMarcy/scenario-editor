@@ -205,12 +205,15 @@ a.btn { display: inline-block; text-decoration: none; }
 .toolbar .select-btn { padding: 6px 9px; font-family: var(--ui-font); font-size: 14px; color: var(--accent); }
 
 /* まとめて削除 */
-.toolbar .select-bar { display: none; }
-.toolbar.selecting .toolbar-row { display: none; }
-.toolbar.selecting .select-bar { display: flex; }
+.toolbar .select-bar, .toolbar .ruby-bar { display: none; }
+.toolbar.selecting .toolbar-row, .toolbar.ruby-mode .toolbar-row { display: none; }
+.toolbar.selecting .select-bar, .toolbar.ruby-mode .ruby-bar { display: flex; }
+/* 狭い画面で収まらない説明や位置の表示は隠す */
+.toolbar .clip { visibility: hidden; }
 .select-count { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.toolbar .select-bar button:disabled { opacity: .4; }
-.toolbar .select-bar button { font-family: var(--ui-font); font-size: 14px; padding: 6px 9px; }
+.toolbar .select-bar button:disabled, .toolbar .ruby-bar button:disabled { opacity: .4; }
+.toolbar .select-bar button, .toolbar .ruby-bar button { font-family: var(--ui-font); font-size: 14px; padding: 6px 9px; }
+.toolbar .ruby-bar .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
 .toolbar .select-bar .danger { background: #d23b2a; border-color: #d23b2a; color: #fff; font-weight: 600; }
 .toolbar .select-bar .danger:disabled { opacity: .4; }
 .blocks.selecting {
@@ -218,6 +221,11 @@ a.btn { display: inline-block; text-decoration: none; }
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .blocks.selecting textarea { pointer-events: none; }
+/* ルビ入力：マス目の文字をタップして選ぶ */
+.blocks.ruby-mode { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.blocks.ruby-mode textarea { pointer-events: none; }
+.blocks.ruby-mode .ch { cursor: pointer; }
+.ch.rsel { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .blk.sel .cells, .blk.sel .badge { background-color: color-mix(in srgb, #d23b2a 18%, transparent); }
 .blk.sel .badge span { outline: 2px solid #d23b2a; outline-offset: 1px; }
 

@@ -126,12 +126,14 @@ function lineToString(l) {
   return '　'.repeat(l.indent) + l.chars.join('');
 }
 
-// 文字をHTMLにする。ルビの付いた文字は tag(親文字, ふりがな) で囲む
-function rubyHtml(chars, rubies, tag) {
+// 文字をHTMLにする。ルビの付いた文字は tag(親文字, ふりがな) で囲む。
+// charHtml(文字, 何文字目) で1字ずつの書き方を変えられる
+function rubyHtml(chars, rubies, tag, charHtml = ch => escapeHtml(ch)) {
+  const part = (a, b) => chars.slice(a, b).map((ch, j) => charHtml(ch, a + j)).join('');
   let html = '', k = 0;
   for (const r of rubies) {
-    html += escapeHtml(chars.slice(k, r.at).join('')) + tag(escapeHtml(chars.slice(r.at, r.at + r.len).join('')), escapeHtml(r.ruby));
+    html += part(k, r.at) + tag(part(r.at, r.at + r.len), escapeHtml(r.ruby));
     k = r.at + r.len;
   }
-  return html + escapeHtml(chars.slice(k).join(''));
+  return html + part(k, chars.length);
 }

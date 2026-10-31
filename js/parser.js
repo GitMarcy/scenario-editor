@@ -24,6 +24,27 @@ function parseRuby(s) {
   return { text: text + s.slice(last), rubies };
 }
 
+// ルビの記号とふりがなを除いた1字ずつ。at＝元の文字列での位置、m＝ルビの親文字ならそのルビ（RUBY_RE の一致）
+function rawChars(s) {
+  const out = [];
+  const push = (from, to, m) => {
+    for (let k = from; k < to;) {
+      const ch = String.fromCodePoint(s.codePointAt(k));
+      out.push({ ch, at: k, m });
+      k += ch.length;
+    }
+  };
+  let last = 0;
+  for (const m of s.matchAll(RUBY_RE)) {
+    push(last, m.index, null);
+    const at = m.index + (m[1] != null ? 1 : 0);
+    push(at, at + (m[1] ?? m[3]).length, m);
+    last = m.index + m[0].length;
+  }
+  push(last, s.length, null);
+  return out;
+}
+
 function rubyMarkup(base, ruby) {
   return base && ruby ? `｜${base}《${ruby}》` : base;
 }

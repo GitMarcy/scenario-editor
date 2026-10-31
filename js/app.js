@@ -177,6 +177,8 @@ function switchTab(name) {
   $$('.panel').forEach(p => { p.hidden = p.dataset.panel !== name; });
   if (name === 'preview') renderPreview();
   setSelecting(false);
+  setRubyMode(false);
+  fitToolbarTexts();
   panelsEl.scrollTop = 0;
 }
 
@@ -313,9 +315,15 @@ function refreshLayout(all = false, changed = -1) {
     const el = blockEl(i);
     el.classList.toggle('gap', gs.length > 0 && lines[gs[0]].type === 'blank');
     if (all || i === changed) {
-      el.querySelector('.render').innerHTML = gs.map(g =>
-        `<div style="padding-left:${lines[g].indent}em">${rubyHtml(lines[g].chars, lines[g].rubies,
-          (base, ruby) => `<span class="rb">${base}<span class="rt">${ruby}</span></span>`)}</div>`).join('');
+      // ルビ入力モードでは、タップで選べるよう1字ずつに段落の何文字目か（data-p）を付ける
+      let p = 0;
+      el.querySelector('.render').innerHTML = gs.map(g => {
+        const l = lines[g], p0 = p;
+        p += l.chars.length;
+        const charHtml = rubyMode ? (ch, k) => `<span class="ch" data-p="${p0 + k}">${escapeHtml(ch)}</span>` : undefined;
+        return `<div style="padding-left:${l.indent}em">${rubyHtml(l.chars, l.rubies,
+          (base, ruby) => `<span class="rb">${base}<span class="rt">${ruby}</span></span>`, charHtml)}</div>`;
+      }).join('');
     }
     // 半ページ（10行）ごとの区切り。偶数ノンブルの次からA4の次の紙
     const marks = gs.filter(g => g % LINES_PER_HALF === 0).map(g => {
@@ -362,7 +370,19 @@ function updateCaret() {
     }
   }
   $('#caret-pos').textContent = `P${Math.floor(g / LINES_PER_HALF) + 1}・${g % LINES_PER_HALF + 1}行目 ／ 全${total}P`;
+  fitText($('#caret-pos'));
 }
+
+// ツールバーの説明や位置の表示は、狭い画面で収まらないときは途中で切らずに隠す
+function fitText(el) {
+  el.classList.remove('clip');
+  el.classList.toggle('clip', el.scrollWidth > el.clientWidth);
+}
+
+function fitToolbarTexts() {
+  for (const id of ['#caret-pos', '#select-count', '#ruby-count']) fitText($(id));
+}
+window.addEventListener('resize', fitToolbarTexts);
 
 function updateToolbar() {
   const type = doc?.blocks[cur]?.type;
@@ -568,6 +588,7 @@ blocksEl.addEventListener('click', e => {
     else selectBlock(e.target.closest('.blk'));
     return;
   }
+  if (rubyMode) return tapRubyChar(e.target.closest('.ch'));
   if (e.target.tagName === 'TEXTAREA') return;
   const el = e.target.closest('.blk');
   focusBlock(el ? indexOf(el) : doc.blocks.length - 1);
@@ -730,7 +751,6 @@ $('#toolbar').addEventListener('click', e => {
 
   const kind = b.dataset.insert;
   if (kind === 'kakko') insertText('「」', 1);
-  else if (kind === 'ruby') openRuby();
   else if (kind === 'name') {
     const s = rubyMarkup(b.dataset.name, b.dataset.ruby) + '「」';
     startBlock('serifu', s, s.length - 1);
@@ -753,53 +773,106 @@ function startBlock(type, text, caret = text.length) {
 }
 
 // ---------- ルビ ----------
-// 選んだ文字を ｜親文字《ふりがな》 にする。ルビの付いた文字を選ぶ（カーソルを置く）と、直したり外したりできる
+// ［ルビ］でルビ入力モードにし、マス目の文字をタップして選ぶ（iPhoneでは文字の選択がボタンを押すと消えるため）。
+// 1つ目のタップで1字、2つ目のタップでその間をまとめて選ぶ。ルビの付いた文字は親文字ぜんぶをひとまとまりで選ぶ。
+// ［ルビ入力］で、選んだ文字を ｜親文字《ふりがな》 にする（ルビの付いた文字なら直す・外す）
 
-let rubyTarget = null;
+let rubyMode = false;
+let rubySel = null;    // { i: ブロック, a〜b: 段落の何文字目から何文字目, open: 2つ目のタップを待っている }
+let rubyTarget = null; // ダイアログで書き換える元の文字列の範囲
 
-// start〜end に掛かっている（カーソルなら中にある）ルビ
-function rubyAt(text, start, end) {
-  for (const m of text.matchAll(RUBY_RE)) {
-    const e = m.index + m[0].length;
-    if (start < e && (start === end ? start > m.index : end > m.index)) return m;
-  }
-  return null;
+function setRubyMode(on) {
+  if (rubyMode === on) return;
+  rubyMode = on;
+  rubySel = null;
+  blocksEl.classList.toggle('ruby-mode', on);
+  $('#toolbar').classList.toggle('ruby-mode', on);
+  if (on) document.activeElement?.blur();
+  refreshLayout(true);
+  updateRubySel();
+  fitToolbarTexts();
 }
 
-function openRuby() {
-  const ta = blockTa(cur);
-  const { selectionStart: s, selectionEnd: e } = ta;
-  const m = rubyAt(ta.value, s, e);
+// ブロックiの組版した文字それぞれに、元の文字列での位置を対応させる。
+// 組版では空白や（昼）を省くので、元の文字列を先頭から順に照らし合わせる
+function rubyMap(i) {
+  const chars = (layout.rows[i] || []).map(g => layout.lines[g]).flatMap(l => l.chars);
+  const raw = rawChars(doc.blocks[i].text);
+  let t = 0;
+  return chars.map(ch => {
+    while (t < raw.length && toFull(raw[t].ch) !== ch) t++;
+    return raw[t++];
+  });
+}
+
+function tapRubyChar(span) {
+  if (!span) return;
+  const i = indexOf(span);
+  const p = +span.dataset.p;
+  const map = rubyMap(i);
+  let a = p, b = p;
+  const m = map[p]?.m;
   if (m) {
-    rubyTarget = { i: cur, start: m.index, end: m.index + m[0].length, base: m[1] ?? m[3], ruby: m[2] ?? m[4] };
+    a = map.findIndex(t => t?.m === m);
+    b = map.findLastIndex(t => t?.m === m);
+  }
+  if (rubySel?.open && rubySel.i === i) {
+    rubySel = { i, a: Math.min(rubySel.a, a), b: Math.max(rubySel.b, b), open: false };
   } else {
-    // 選んだ範囲の前後の空白は親文字に含めない
-    const sel = ta.value.slice(s, e);
-    const base = sel.trim();
-    if (!base) return toast('ルビを付ける文字を選んでから押してください');
-    if (/[｜|《》]/.test(base)) return toast('ルビの記号（｜《》）を含まないように選んでください');
-    const start = s + sel.indexOf(base);
-    rubyTarget = { i: cur, start, end: start + base.length, base, ruby: '' };
+    rubySel = { i, a, b, open: true };
+  }
+  updateRubySel();
+}
+
+function updateRubySel() {
+  for (const el of blocksEl.querySelectorAll('.ch.rsel')) el.classList.remove('rsel');
+  const s = rubySel;
+  if (s) {
+    for (const el of blockEl(s.i).querySelectorAll('.ch')) {
+      el.classList.toggle('rsel', el.dataset.p >= s.a && el.dataset.p <= s.b);
+    }
+  }
+  $('#ruby-count').textContent = s ? `「${rubyMap(s.i).slice(s.a, s.b + 1).map(t => t?.ch ?? '').join('')}」` : '文字をタップして選択';
+  $('#btn-ruby-input').disabled = !s;
+  fitText($('#ruby-count'));
+}
+
+$('#btn-ruby').onclick = () => setRubyMode(true);
+$('#btn-ruby-done').onclick = () => setRubyMode(false);
+$('#btn-ruby-input').onclick = () => {
+  const s = rubySel;
+  if (!s) return;
+  const sel = rubyMap(s.i).slice(s.a, s.b + 1);
+  const groups = new Set(sel.map(t => t?.m));
+  const m = sel[0]?.m;
+  if (groups.size === 1 && m) {
+    rubyTarget = { i: s.i, start: m.index, end: m.index + m[0].length, base: m[1] ?? m[3], ruby: m[2] ?? m[4] };
+  } else if (groups.size === 1 && m === null) {
+    const start = sel[0].at, end = sel.at(-1).at + sel.at(-1).ch.length;
+    rubyTarget = { i: s.i, start, end, base: doc.blocks[s.i].text.slice(start, end), ruby: '' };
+  } else {
+    return toast('ルビの付いた文字と、付いていない文字は一緒に選べません', 3000);
   }
   $('#ruby-base').textContent = rubyTarget.base;
   $('#ruby-input').value = rubyTarget.ruby;
   $('#ruby-remove').hidden = !m;
   $('#ruby-dialog').returnValue = '';
   $('#ruby-dialog').showModal();
-}
+};
 
 $('#ruby-dialog').addEventListener('close', () => {
   const t = rubyTarget;
   rubyTarget = null;
-  const ta = t && blockTa(t.i);
-  if (!ta) return;
-  ta.focus();
   const act = $('#ruby-dialog').returnValue;
+  if (!t || (act !== 'ok' && act !== 'remove')) return;
   const ruby = $('#ruby-input').value.replace(/[｜|《》\s　]/g, '');
-  if (act !== 'ok' && act !== 'remove') return ta.setSelectionRange(t.start, t.end);
-  ta.setRangeText(act === 'ok' ? rubyMarkup(t.base, ruby) : t.base, t.start, t.end, 'end');
+  const b = doc.blocks[t.i];
+  b.text = b.text.slice(0, t.start) + (act === 'ok' ? rubyMarkup(t.base, ruby) : t.base) + b.text.slice(t.end);
+  blockTa(t.i).value = b.text;
   markHistoryStep();
-  ta.dispatchEvent(new Event('input', { bubbles: true }));
+  rubySel = null;
+  blockChanged(t.i);
+  updateRubySel();
 });
 
 // ---------- 段落をまとめて削除 ----------
@@ -843,6 +916,7 @@ function updateSelection() {
   $('#btn-delete-blocks').disabled = !selected.size;
   $('#btn-move-up').disabled = !selected.size || selected.has(0);
   $('#btn-move-down').disabled = !selected.size || selected.has(doc.blocks.length - 1);
+  fitText($('#select-count'));
 }
 
 // なぞって選ぶ。なぞり始める前の選択に、なぞった範囲を足す。
@@ -1023,10 +1097,12 @@ function step(from, to) {
   if (i < 0) i = Math.min(cur, doc.blocks.length - 1);
   cur = Math.min(i, doc.blocks.length - 1);
   setSelecting(false);
+  rubySel = null;
   restoring = true;
   fillEditor();
   scheduleSave();
   restoring = false;
+  updateRubySel();
   updateHistoryButtons();
   if (editing) focusBlock(cur);
 }

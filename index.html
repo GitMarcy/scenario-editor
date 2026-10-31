@@ -86,7 +86,7 @@
             <button data-type="serifu">セリフ</button>
           </div>
           <span id="caret-pos" class="caret-pos"></span>
-          <button data-insert="ruby" class="select-btn">ルビ</button>
+          <button id="btn-ruby" class="select-btn">ルビ</button>
           <button id="btn-select" class="select-btn">選択</button>
         </div>
         <div class="toolbar-row inserts">
@@ -105,6 +105,11 @@
           <button id="btn-delete-blocks" class="danger">削除</button>
           <button id="btn-select-done">完了</button>
         </div>
+        <div class="toolbar-row ruby-bar">
+          <span id="ruby-count" class="select-count"></span>
+          <button id="btn-ruby-input" class="primary">ルビ入力</button>
+          <button id="btn-ruby-done">完了</button>
+        </div>
       </div>
       <div id="body-blocks" class="blocks"></div>
       <p id="body-stats" class="stats"></p>
@@ -115,7 +120,7 @@
           <li><b>柱</b>：選ぶと「○」が入ります。「○」を消すと、種類を選ぶ前に戻ります。（昼）は自動で省きます。柱の前は自動で1行空きます（紙の1行目に来るときは空けません）。</li>
           <li><b>セリフ</b>：<code>名前「セリフ」</code>。名前のボタンを押すと「名前「」」が入ります。2行目以降は自動で1字下げます。</li>
           <li><b>ト書き</b>：自動で3字下げます。［×××］で場面転換の「×　　　×　　　×」が入ります。</li>
-          <li><b>ルビ</b>：ルビを付けたい文字を選んで［ルビ］を押し、ふりがなを入れます。入力中の段落では <code>｜親文字《ふりがな》</code> と出ます（この形で直接打っても付きます）。ルビの付いた文字にカーソルを置いて［ルビ］を押すと、直したり外したりできます。</li>
+          <li><b>ルビ</b>：［ルビ］を押してから、ルビを付けたい文字をタップします。1つ目のタップで1字、2つ目のタップでその間の文字がまとめて選べます。［ルビ入力］を押してふりがなを入れ、終わったら［完了］を押します。ルビの付いた文字を選んで［ルビ入力］を押すと、直したり外したりできます。入力中の段落では <code>｜親文字《ふりがな》</code> と出ます（この形で直接打っても付きます）。</li>
           <li>段落を消したり順番を入れ替えたりするときは［選択］を押し、段落をタップします。指（マウス）でなぞるか、2つ目のタップで、その間の段落もまとめて選べます。［↑］［↓］で選んだ段落を1つずつ上下に動かし、［削除］で消します。</li>
           <li>改行キーで次の段落に進みます。柱・ト書き・セリフの次は自動でト書きになります。セリフの途中で改行すると、そこでセリフが終わって「」」が自動で付き、改行より後ろの文字はト書きになります。マス目は原稿用紙（1行20字）と同じ幅で、点線のところでノンブル（ページ）が変わります。</li>
           <li>入力中の段落は20字ちょうどで折り返します。句読点のぶら下げなど、印刷どおりの折り返しは段落を離れると表示されます。</li>
