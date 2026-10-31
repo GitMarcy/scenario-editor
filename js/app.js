@@ -297,7 +297,7 @@ function renderCharacters() {
     el.className = 'char';
     el.innerHTML = `<div class="char-row">
         <label class="field"><span>名前</span><input data-k="name" type="text" placeholder="田中蓮"></label>
-        <label class="field"><span>ふりがな</span><input data-k="nameRuby" type="text" placeholder="たなかれん"></label>
+        <label class="field"><span>ふりがな（任意）</span><input data-k="nameRuby" type="text" placeholder="たなかれん"></label>
       </div>
       <div class="char-row age-job">
         <label class="field"><span>年齢</span><input data-k="age" type="text" placeholder="２５"></label>
@@ -305,7 +305,7 @@ function renderCharacters() {
       </div>
       <div class="char-row">
         <label class="field"><span>名前の表記</span><input data-k="label" type="text"></label>
-        <label class="field"><span>ふりがな</span><input data-k="labelRuby" type="text"></label>
+        <label class="field"><span>ふりがな（任意）</span><input data-k="labelRuby" type="text"></label>
       </div>
       <div class="char-actions">
         <span class="num">${i + 1}</span>
