@@ -45,11 +45,10 @@ function drawSheet(sheet, k) {
         });
         ctx.font = `${G.ruby * k}px ${FONT}`;
         for (const r of line.rubies) {
-          const { left, top } = rubyBox(x, line.indent, r);
-          Array.from(r.ruby).forEach((ch, i) => {
-            const cy = oy + G.halfPad + top + (i + 0.5) * G.ruby;
-            drawChar(ctx, ch, (ox + left + G.ruby / 2) * k, cy * k, G.ruby * k);
-          });
+          const { left, chars } = rubyBox(x, line.indent, r);
+          for (const { ch, cy } of chars) {
+            drawChar(ctx, ch, (ox + left + G.ruby / 2) * k, (oy + G.halfPad + cy) * k, G.ruby * k);
+          }
         }
       });
       if (half.nombre != null) {

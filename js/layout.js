@@ -126,13 +126,25 @@ function lineToString(l) {
   return '　'.repeat(l.indent) + l.chars.join('');
 }
 
-// 文字をHTMLにする。ルビの付いた文字は tag(親文字, ふりがな) で囲む。
+// ルビを並べる範囲。親文字の先頭からの位置 start と長さ span を返し、ルビはこの中に均等に並べる。
+// len＝親文字の長さ、n＝ルビの字数、size＝ルビ1字の大きさ（単位はそろっていれば何でもよい）
+// ・親文字の長さに収まるときは、前後にルビ1字分の空きをとる
+// ・空きをとると収まらないときは、空きなしで親文字の長さいっぱいに並べる（少しなら詰める）
+// ・それでも収まらないほど多いときは、親文字の前後にはみ出して中央に揃える
+function rubySpread(len, n, size) {
+  const need = n * size;
+  if (need <= len - 2 * size) return { start: size, span: len - 2 * size };
+  if (need * 0.9 <= len) return { start: 0, span: len };
+  return { start: (len - need) / 2, span: need };
+}
+
+// 文字をHTMLにする。ルビの付いた文字は tag(親文字, ふりがな, ルビ) で囲む。
 // charHtml(文字, 何文字目) で1字ずつの書き方を変えられる
 function rubyHtml(chars, rubies, tag, charHtml = ch => escapeHtml(ch)) {
   const part = (a, b) => chars.slice(a, b).map((ch, j) => charHtml(ch, a + j)).join('');
   let html = '', k = 0;
   for (const r of rubies) {
-    html += part(k, r.at) + tag(part(r.at, r.at + r.len), escapeHtml(r.ruby));
+    html += part(k, r.at) + tag(part(r.at, r.at + r.len), escapeHtml(r.ruby), r);
     k = r.at + r.len;
   }
   return html + part(k, chars.length);

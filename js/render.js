@@ -48,10 +48,12 @@ function renderHalf(half, { grid = false } = {}) {
       box.appendChild(cell);
     });
     for (const r of line.rubies) {
-      const { left, top } = rubyBox(x, line.indent, r);
-      const rt = el('div', 'ruby', { left: mm(left), top: mm(G.halfPad + top) });
-      rt.textContent = r.ruby;
-      box.appendChild(rt);
+      const { left, chars } = rubyBox(x, line.indent, r);
+      for (const { ch, cy } of chars) {
+        const rt = el('div', 'ruby', { left: mm(left), top: mm(G.halfPad + cy - G.ruby / 2) });
+        rt.textContent = ch;
+        box.appendChild(rt);
+      }
     }
   });
   if (half.nombre != null) {
@@ -62,12 +64,16 @@ function renderHalf(half, { grid = false } = {}) {
   return box;
 }
 
-// ルビの位置（x＝行の左端、半ページ枠の1字目のマスから）。親文字の右に、親文字の長さの中央に揃えて置く
+// ルビの位置（x＝行の左端、半ページ枠の1字目のマスから）。親文字の右に、rubySpread の範囲に均等に並べる。
+// left＝ルビの左端、chars＝1字ずつの文字と中心の高さ（cy）
 function rubyBox(x, indent, r) {
-  const n = Array.from(r.ruby).length;
+  const kana = Array.from(r.ruby);
+  const n = kana.length;
+  const { start, span } = rubySpread(r.len * G.pitchY, n, G.ruby);
+  const top = (indent + r.at) * G.pitchY + start;
   return {
     left: x + (G.pitchX + G.font) / 2 + G.rubyGap,
-    top: (indent + r.at + r.len / 2) * G.pitchY - n * G.ruby / 2,
+    chars: kana.map((ch, k) => ({ ch, cy: top + span * (k + 0.5) / n })),
   };
 }
 

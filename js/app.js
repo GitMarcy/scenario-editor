@@ -321,8 +321,7 @@ function refreshLayout(all = false, changed = -1) {
         const l = lines[g], p0 = p;
         p += l.chars.length;
         const charHtml = rubyMode ? (ch, k) => `<span class="ch" data-p="${p0 + k}">${escapeHtml(ch)}</span>` : undefined;
-        return `<div style="padding-left:${l.indent}em">${rubyHtml(l.chars, l.rubies,
-          (base, ruby) => `<span class="rb">${base}<span class="rt">${ruby}</span></span>`, charHtml)}</div>`;
+        return `<div style="padding-left:${l.indent}em">${rubyHtml(l.chars, l.rubies, rubyTag, charHtml)}</div>`;
       }).join('');
     }
     // 半ページ（10行）ごとの区切り。偶数ノンブルの次からA4の次の紙
@@ -340,6 +339,16 @@ function refreshLayout(all = false, changed = -1) {
   const halves = Math.max(1, Math.ceil(n / LINES_PER_HALF));
   $('#body-stats').textContent = `本文 ${n}行 ／ ノンブル ${halves}（A4 ${Math.ceil(halves / 2)}枚・20×20換算 ${(n / 20).toFixed(1)}枚）`;
   updateCaret();
+}
+
+// 段落の上に出すルビ。原稿用紙と同じく rubySpread の範囲に1字ずつ均等に並べる（1em＝親文字1字）
+const RUBY_SIZE = 0.42; // ルビ1字の大きさ（em）
+
+function rubyTag(base, ruby, r) {
+  const kana = Array.from(r.ruby);
+  const { start, span } = rubySpread(r.len, kana.length, RUBY_SIZE);
+  return `<span class="rb">${base}<span class="rt" style="left:${start}em;width:${span}em">${
+    kana.map(ch => `<span>${escapeHtml(ch)}</span>`).join('')}</span></span>`;
 }
 
 // 入力中のブロックは、ブラウザの折り返しが組版より1行多くなることがあるので高さを合わせる

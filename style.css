@@ -266,12 +266,13 @@ a.btn { display: inline-block; text-decoration: none; }
 .t-hashira .cells { background-color: var(--hashira); }
 .t-serifu .cells { background-color: var(--serifu); }
 .render > div { white-space: pre; height: var(--lh); }
-/* ルビは親文字の上の、行の空きに小さく出す */
+/* ルビは親文字の上の、行の空きに小さく出す。位置と幅はJSで決め、その中に1字ずつ均等に並べる */
 .render .rb { position: relative; }
 .render .rt {
-  position: absolute; left: 50%; bottom: 88%; transform: translateX(-50%);
-  font-size: .42em; line-height: 1; white-space: nowrap;
+  position: absolute; bottom: 96%; height: .42em;
+  display: flex; justify-content: space-around; align-items: flex-end;
 }
+.render .rt > span { font-size: .42em; line-height: 1; } /* RUBY_SIZE（app.js）と合わせる */
 .cells textarea {
   position: absolute; left: 0; top: 0; z-index: 1;
   width: 20.5em; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 0;
@@ -362,7 +363,7 @@ a.btn { display: inline-block; text-decoration: none; }
   line-height: 11.4mm; font-size: 4.6mm; text-align: center;
 }
 .ruby {
-  position: absolute; width: 2.3mm;
+  position: absolute; width: 2.3mm; height: 2.3mm;
   writing-mode: vertical-rl; text-orientation: mixed;
   line-height: 2.3mm; font-size: 2.3mm; white-space: nowrap;
 }
