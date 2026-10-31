@@ -28,11 +28,11 @@
     </div>
   </header>
   <details class="notice" data-sync-mode="local">
-    <summary>台本はこのブラウザの中に自動で保存されます。ブラウザの「Cookie・サイトデータ」を削除すると消えてしまうので、残しておきたい台本は［保存・コピー］→「編集データ（.json）を保存」で保管してください。<span class="more-link">詳しく</span></summary>
+    <summary>台本はこのブラウザの中に自動で保存されます。ブラウザの「Cookie・サイトデータ」を削除すると消えてしまうので、残しておきたい台本は［書き出し］→「編集データ（.json）を書き出し」で保管してください。<span class="more-link">詳しく</span></summary>
     <ul>
       <li>編集内容は、この端末のブラウザの中に自動で保存されます。</li>
       <li>ブラウザの履歴やCookie・サイトデータを削除すると、台本も一緒に消えます。iPhoneでは、長いあいだ開かないと自動で消えることもあります。</li>
-      <li>大切な台本は、こまめに作品を開いて右上の［保存・コピー］→「編集データ（.json）を保存」で、Googleドライブ・iCloud・端末などに保管しましょう。</li>
+      <li>大切な台本は、こまめに作品を開いて右上の［書き出し］→「編集データ（.json）を書き出し」で、Googleドライブ・iCloud・端末などに保管しましょう。</li>
       <li>保存した編集データは、一覧の［続きから書く］から読み込めます。読み込んだ台本は、元の台本に上書きされず、新しい台本として一覧に追加されます。</li>
       <li>PCとiPhoneのデータは別々です。別の端末で続きを書くときは、保存した編集データを読み込んでください。</li>
       <li>くわしくは<a href="manual.html#json">使い方</a>をご覧ください。</li>
@@ -46,7 +46,7 @@
       <li>作品を消すときは、このアプリの［…］→「削除」で消してください。ドライブでファイルを消しても、この端末の台本は消えず、もう一度保存されます。</li>
       <li>一覧を開いたときと、書いている途中に、自動で同期します。ログインは約1時間で切れるので、「再接続」と出たらタップしてください。</li>
       <li>2台で同じ作品を同時に書き換えたときは、片方を「（この端末の版）」として残します。</li>
-      <li>念のため、大切な台本は［保存・コピー］→「編集データ（.json）を保存」でも保管しておくと安心です。</li>
+      <li>念のため、大切な台本は［書き出し］→「編集データ（.json）を書き出し」でも保管しておくと安心です。</li>
       <li>くわしくは<a href="manual.html#sync">使い方</a>をご覧ください。</li>
     </ul>
   </details>
@@ -73,7 +73,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
       </button>
     </div>
-    <button id="btn-export" class="btn primary">保存・コピー</button>
+    <button id="btn-export" class="btn primary">書き出し</button>
   </header>
 
   <main class="panels">
@@ -176,10 +176,10 @@
 
 <!-- 保存メニュー -->
 <dialog id="export-dialog" class="sheet-dialog">
-  <h2>保存・コピー</h2>
-  <button data-export="backup">編集データ（.json）を保存</button>
-  <button data-export="pdf">スマホからPDF保存（書き出し）</button>
-  <button data-export="print">印刷画面からPDF保存（PCのみ）</button>
+  <h2>書き出し</h2>
+  <button data-export="backup">編集データ（.json）を書き出し</button>
+  <button data-export="pdf">スマホからPDF書き出し</button>
+  <button data-export="print">PCからPDF書き出し（印刷画面）</button>
   <button data-export="copy-grid">Word用にコピー（原稿用紙どおり）</button>
   <button data-export="copy-plain">プレーンテキストでコピー（本文のみ/ルビなし）</button>
   <button data-export="close" class="cancel">閉じる</button>
@@ -200,7 +200,7 @@
 <dialog id="item-dialog" class="sheet-dialog">
   <h2 id="item-dialog-title"></h2>
   <button data-item="duplicate">複製</button>
-  <button data-item="backup">編集データ（.json）を保存</button>
+  <button data-item="backup">編集データ（.json）を書き出し</button>
   <button data-item="delete" class="danger">削除</button>
   <button data-item="close" class="cancel">閉じる</button>
 </dialog>

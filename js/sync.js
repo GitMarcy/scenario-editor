@@ -185,7 +185,7 @@ async function renameOldFolder(f) {
   return f.id;
 }
 
-// 中身は「編集データ（.json）を保存」と同じ形。ドライブからダウンロードして［続きから書く］でも読み込める
+// 中身は「編集データ（.json）を書き出し」と同じ形。ドライブからダウンロードして［続きから書く］でも読み込める
 async function upload(s, fileId) {
   const meta = {
     name: `${fileBase(s)}.json`,
