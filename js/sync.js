@@ -1,13 +1,17 @@
 // Googleドライブとの同期（選んだ人だけ）。
-// 台本は本人のGoogleドライブにある「アプリ専用の隠しフォルダ（appDataFolder）」に置く。
+// 台本は本人のマイドライブの「シナリオエディター（同期）」フォルダに、編集データ（.json）と同じ形で置く。
+// 権限は drive.file（このアプリが作ったファイルだけを読み書きできる）。
 // 通信はこのブラウザとGoogleの間だけで、作った人を含め、本人のアカウント以外からは読めない
 
 // Google Cloud で作った OAuth クライアントID（ウェブアプリケーション）。公開してよい値。
 // 空のあいだは同期の入口を出さない
 const GOOGLE_CLIENT_ID = '431779331949-q49bfuej666gs8o7gkb3i727gb48qeg4.apps.googleusercontent.com';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+const FOLDER_NAME = 'シナリオエディター（同期）';
+const OLD_FOLDER_NAME = 'シナリオエディター'; // はじめのころの名前。見つけたら今の名前に直す
+const APP_TAG = 'scenario-editor'; // このアプリのファイルの印（appProperties.app）
 
 // file:// ではGoogleのログインが使えない
 const syncAvailable = !!GOOGLE_CLIENT_ID && location.protocol.startsWith('http');
@@ -32,10 +36,11 @@ const writeJson = (key, v) => localStorage.setItem(key, JSON.stringify(v));
 
 // ---------- ログイン ----------
 
-// アクセストークンは約1時間で切れる。サーバーがないので自動では延ばせず、切れたらタップで取り直す
+// アクセストークンは約1時間で切れる。サーバーがないので自動では延ばせず、切れたらタップで取り直す。
+// 権限を変えたあと（隠しフォルダ→見えるフォルダ）は、前の権限のトークンを使わない
 function driveToken() {
   const t = readJson('driveToken', null);
-  return t && t.exp > Date.now() + 60000 ? t.value : null;
+  return t && t.scope === DRIVE_SCOPE && t.exp > Date.now() + 60000 ? t.value : null;
 }
 
 let gisPromise;
@@ -69,7 +74,7 @@ function connectDrive() {
       if (r.error || !google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_SCOPE)) {
         return reject(new Error('Googleドライブへの保存が許可されませんでした'));
       }
-      writeJson('driveToken', { value: r.access_token, exp: Date.now() + r.expires_in * 1000 });
+      writeJson('driveToken', { value: r.access_token, scope: DRIVE_SCOPE, exp: Date.now() + r.expires_in * 1000 });
       resolve();
     };
     tokenClient.requestAccessToken({ prompt: '' });
@@ -81,7 +86,7 @@ function connectDrive() {
 function disconnectDrive() {
   const t = driveToken();
   if (t && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(t);
-  ['driveToken', 'driveEmail', 'syncLastAt'].forEach(k => localStorage.removeItem(k));
+  ['driveToken', 'driveEmail', 'driveFolder', 'syncLastAt'].forEach(k => localStorage.removeItem(k));
   localStorage.setItem('syncMode', 'local');
 }
 
@@ -108,40 +113,90 @@ async function drive(url, opt = {}) {
   return res;
 }
 
-// 作品1つにつきファイル1つ（名前は「台本のid.json」）。appProperties に更新日時と、削除済みかどうかを持つ
-async function listRemote(q) {
+// 作品1つにつきファイル1つ（名前は「タイトル.json」）。利用者がフォルダを移したり名前を変えたりしても
+// 見つけられるよう、appProperties に作品のid・更新日時・削除済みかどうかを持つ
+async function listRemote(extra) {
+  let q = `appProperties has { key='app' and value='${APP_TAG}' }`;
+  if (extra) q += ` and ${extra}`;
   const files = [];
   let pageToken = '';
   do {
-    const params = new URLSearchParams({ spaces: 'appDataFolder', fields: 'nextPageToken,files(id,name,appProperties)', pageSize: '1000' });
-    if (q) params.set('q', q);
+    const params = new URLSearchParams({ q, fields: 'nextPageToken,files(id,trashed,appProperties)', pageSize: '1000' });
     if (pageToken) params.set('pageToken', pageToken);
     const r = await (await drive(`${DRIVE_API}/files?${params}`)).json();
     files.push(...r.files);
     pageToken = r.nextPageToken;
   } while (pageToken);
-  // 2台で同時に作ると同じ名前が2つできることがあるので、新しいほうを使う
   const map = new Map();
   for (const f of files) {
-    const id = f.name.replace(/\.json$/, '');
-    const updatedAt = Number(f.appProperties?.updatedAt) || 0;
-    if (!(map.get(id)?.updatedAt >= updatedAt)) {
-      map.set(id, { fileId: f.id, updatedAt, deleted: f.appProperties?.deleted === '1' });
-    }
+    const p = f.appProperties || {};
+    const deleted = p.deleted === '1';
+    // 利用者がドライブで消したファイルは「なかったもの」として扱い、手元の作品から作り直す。
+    // ドライブ側の操作で台本を失わないように、作品を消すのはこのアプリで消したときだけにする
+    if (!p.scriptId || (f.trashed && !deleted)) continue;
+    const updatedAt = Number(p.updatedAt) || 0;
+    // 同じ作品のファイルが2つあるとき（ドライブでコピーしたときなど）は、新しいほうを使う
+    if (!(map.get(p.scriptId)?.updatedAt >= updatedAt)) map.set(p.scriptId, { fileId: f.id, updatedAt, deleted });
   }
   return map;
 }
 
 async function findRemote(id) {
-  return (await listRemote(`name = '${id}.json'`)).get(id);
+  return (await listRemote(`appProperties has { key='scriptId' and value='${id}' }`)).get(id);
 }
 
-async function writeRemote(id, fileId, body, props) {
-  const meta = { name: `${id}.json`, mimeType: 'application/json', appProperties: props };
-  if (!fileId) meta.parents = ['appDataFolder'];
+// 新しく作る作品を入れるフォルダ。ゴミ箱に入れられていたら作り直す（確かめるのは開くたびに1回）
+let folderId = null;
+async function driveFolder() {
+  if (folderId) return folderId;
+  const cached = localStorage.getItem('driveFolder');
+  if (cached) {
+    try {
+      const f = await (await drive(`${DRIVE_API}/files/${cached}?fields=id,name,trashed`)).json();
+      if (!f.trashed) return (folderId = await renameOldFolder(f));
+    } catch (e) {
+      if (e.auth) throw e;
+    }
+  }
+  const q = `appProperties has { key='app' and value='${APP_TAG}-folder' } and trashed = false`;
+  const r = await (await drive(`${DRIVE_API}/files?${new URLSearchParams({ q, fields: 'files(id,name)', orderBy: 'createdTime' })}`)).json();
+  folderId = r.files[0] && await renameOldFolder(r.files[0]);
+  if (!folderId) {
+    const res = await drive(`${DRIVE_API}/files?fields=id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder', appProperties: { app: `${APP_TAG}-folder` } }),
+    });
+    folderId = (await res.json()).id;
+  }
+  localStorage.setItem('driveFolder', folderId);
+  return folderId;
+}
+
+// 前の名前のままのフォルダだけを今の名前にする（利用者が自分で付けた名前は変えない）
+async function renameOldFolder(f) {
+  if (f.name === OLD_FOLDER_NAME) {
+    await drive(`${DRIVE_API}/files/${f.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: FOLDER_NAME }),
+    });
+  }
+  return f.id;
+}
+
+// 中身は「編集データ（.json）を保存」と同じ形。ドライブからダウンロードして［続きから書く］でも読み込める
+async function upload(s, fileId) {
+  const meta = {
+    name: `${fileBase(s)}.json`,
+    mimeType: 'application/json',
+    appProperties: { app: APP_TAG, scriptId: s.id, updatedAt: String(s.updatedAt), deleted: '0' },
+  };
+  if (fileId) meta.trashed = false; // ほかの端末で消したあとに書いた分を戻すとき
+  else meta.parents = [await driveFolder()];
   const boundary = 'scenario-' + newId();
   const data = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${body}\r\n--${boundary}--`;
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(s, null, 2)}\r\n--${boundary}--`;
   await drive(`${DRIVE_UPLOAD}/files${fileId ? '/' + fileId : ''}?uploadType=multipart&fields=id`, {
     method: fileId ? 'PATCH' : 'POST',
     headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
@@ -149,14 +204,24 @@ async function writeRemote(id, fileId, body, props) {
   });
 }
 
-const upload = (s, fileId) => writeRemote(s.id, fileId, JSON.stringify(s), { updatedAt: String(s.updatedAt), deleted: '0' });
+// 消した作品は、ほかの端末にも消したことを伝えるため、印を付けてドライブのゴミ箱に移す。
+// ゴミ箱は30日で空になるので、それより長く開かなかった端末では、消した作品がドライブに戻ることがある
+function writeTombstone(fileId) {
+  return drive(`${DRIVE_API}/files/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed: true, appProperties: { deleted: '1', updatedAt: String(Date.now()) } }),
+  });
+}
 
-// 消した作品は、ほかの端末にも消したことを伝えるため、中身のない「墓標」として残す
-const writeTombstone = (id, fileId) => writeRemote(id, fileId, '{}', { updatedAt: String(Date.now()), deleted: '1' });
-
+// ドライブで中身を書き換えられて読めないファイルは null（その作品はこの回は同期しない）
 async function download(id, r) {
-  const data = await (await drive(`${DRIVE_API}/files/${r.fileId}?alt=media`)).json();
-  return { ...newScript(), ...data, id, updatedAt: r.updatedAt };
+  const res = await drive(`${DRIVE_API}/files/${r.fileId}?alt=media`);
+  try {
+    return { ...newScript(), ...(await res.json()), id, updatedAt: r.updatedAt };
+  } catch {
+    return null;
+  }
 }
 
 // ---------- 同期 ----------
@@ -192,6 +257,7 @@ function syncAll() {
 }
 
 async function reconcile() {
+  await driveFolder(); // フォルダを用意し、前の名前なら直しておく（開くたびに1回）
   const remote = await listRemote();
   const local = new Map((await listScripts()).map(s => [s.id, s]));
   // state[id]：最後に同期したときの更新日時。これより新しければ、そのあとに書き換えられている
@@ -201,7 +267,7 @@ async function reconcile() {
 
   for (const id of pending) {
     const r = remote.get(id);
-    if (r && !r.deleted) await writeTombstone(id, r.fileId);
+    if (r && !r.deleted) await writeTombstone(r.fileId);
     delete state[id];
   }
   writeJson('pendingDeletes', []);
@@ -224,23 +290,19 @@ async function reconcile() {
       } else if (!r) {
         await upload(l);
         state[id] = l.updatedAt;
-      } else if (!l) {
-        await putScript(await download(id, r));
+      } else if (l?.updatedAt === r.updatedAt) {
         state[id] = r.updatedAt;
-        changed = true;
-      } else if (l.updatedAt === r.updatedAt) {
-        state[id] = r.updatedAt;
-      } else if (l.updatedAt > base && r.updatedAt > base) {
-        // 両方の端末で書き換えていた：ドライブの版を採用し、この端末の版は別の作品として残す
-        const copy = { ...l, id: newId(), cover: { ...l.cover, title: (l.cover.title || '無題') + '（この端末の版）' } };
-        await putScript(copy);
-        await upload(copy);
-        state[copy.id] = copy.updatedAt;
-        await putScript(await download(id, r));
-        state[id] = r.updatedAt;
-        changed = true;
-      } else if (r.updatedAt > l.updatedAt) {
-        await putScript(await download(id, r));
+      } else if (!l || r.updatedAt > l.updatedAt || l.updatedAt > base && r.updatedAt > base) {
+        const d = await download(id, r);
+        if (!d) continue;
+        if (l && l.updatedAt > base && r.updatedAt > base) {
+          // 両方の端末で書き換えていた：ドライブの版を採用し、この端末の版は別の作品として残す
+          const copy = { ...l, id: newId(), cover: { ...l.cover, title: (l.cover.title || '無題') + '（この端末の版）' } };
+          await putScript(copy);
+          await upload(copy);
+          state[copy.id] = copy.updatedAt;
+        }
+        await putScript(d);
         state[id] = r.updatedAt;
         changed = true;
       } else {
