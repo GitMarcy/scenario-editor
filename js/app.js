@@ -84,6 +84,7 @@ async function showList() {
     return li;
   }));
   $('#list-empty').hidden = scripts.length > 0;
+  $('#list-label').hidden = scripts.length === 0;
   showView('list');
 }
 

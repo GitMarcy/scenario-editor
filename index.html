@@ -22,9 +22,7 @@
     <h1>シナリオ</h1>
     <div class="bar-actions">
       <a class="btn ghost" href="manual.html">使い方</a>
-      <button id="btn-new" class="btn ghost bold">＋ 新規</button>
-      <button id="btn-import" class="btn primary">読み込み</button>
-      <input id="import-file" type="file" accept=".json,application/json" hidden>
+      <button id="btn-new" class="btn primary">＋ 新規</button>
     </div>
   </header>
   <details class="notice">
@@ -33,11 +31,14 @@
       <li>編集内容は、この端末のブラウザの中に自動で保存されます。</li>
       <li>ブラウザの履歴やCookie・サイトデータを削除すると、台本も一緒に消えます。iPhoneでは、長いあいだ開かないと自動で消えることもあります。</li>
       <li>大切な台本は、こまめに作品を開いて右上の［保存・コピー］→「編集データ（.json）を保存」で、Googleドライブ・iCloud・端末などに保管しましょう。</li>
-      <li>保存した編集データは、右上の［読み込み］から読み込めます。読み込んだ台本は、元の台本に上書きされず、新しい台本として一覧に追加されます。</li>
+      <li>保存した編集データは、一覧の［続きから書く］から読み込めます。読み込んだ台本は、元の台本に上書きされず、新しい台本として一覧に追加されます。</li>
       <li>PCとiPhoneのデータは別々です。別の端末で続きを書くときは、保存した編集データを読み込んでください。</li>
       <li>くわしくは<a href="manual.html#json">使い方</a>をご覧ください。</li>
     </ul>
   </details>
+  <button id="btn-import" class="continue">続きから書く<small>→ 編集データ（.json）を読み込み</small></button>
+  <input id="import-file" type="file" accept=".json,application/json" hidden>
+  <p id="list-label" class="list-label" hidden>ブラウザに読み込み済みのシナリオ</p>
   <ul id="script-list" class="script-list"></ul>
   <p id="list-empty" class="empty" hidden>まだ作品がありません。<br>「＋ 新規」から書き始めましょう。</p>
 </section>

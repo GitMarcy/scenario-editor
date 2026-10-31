@@ -62,7 +62,6 @@ button { font: inherit; color: inherit; }
 }
 .btn.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .btn.ghost { color: var(--accent); }
-.btn.bold { font-weight: 600; }
 a.btn { display: inline-block; text-decoration: none; }
 .notice a { color: var(--accent); }
 
@@ -117,6 +116,14 @@ a.btn { display: inline-block; text-decoration: none; }
 .notice .more-link::after { content: " ›"; }
 .notice[open] .more-link { display: none; }
 .notice ul { margin: 8px 0 2px; padding-left: 1.2em; }
+.continue {
+  display: block; width: calc(100% - 24px); margin: 12px 12px 0; padding: 12px 14px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--accent); color: var(--accent);
+  font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.continue small { display: block; margin-top: 2px; font-size: 12px; font-weight: normal; }
+.list-label { margin: 20px 16px 0; font-size: 12px; color: var(--muted); }
+.list-label + .script-list { margin-top: 6px; }
 
 /* ---------- 編集パネル ---------- */
 /* 編集画面は見えている範囲（キーボードの上）にぴったり固定し、中身だけをスクロールする。
