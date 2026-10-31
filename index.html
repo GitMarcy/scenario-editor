@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="シナリオ">
 <meta name="theme-color" content="#f6f3ec">
+<!-- 読み込めるスクリプトと通信先を、このサイトとGoogle（ログイン・ドライブ）だけに絞る -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; connect-src 'self' https://www.googleapis.com https://accounts.google.com; frame-src https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'">
 <title>シナリオエディター</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -25,7 +27,7 @@
       <button id="btn-new" class="btn primary">＋ 新規</button>
     </div>
   </header>
-  <details class="notice">
+  <details class="notice" data-sync-mode="local">
     <summary>台本はこのブラウザの中に自動で保存されます。ブラウザの「Cookie・サイトデータ」を削除すると消えてしまうので、残しておきたい台本は［保存・コピー］→「編集データ（.json）を保存」で保管してください。<span class="more-link">詳しく</span></summary>
     <ul>
       <li>編集内容は、この端末のブラウザの中に自動で保存されます。</li>
@@ -36,9 +38,23 @@
       <li>くわしくは<a href="manual.html#json">使い方</a>をご覧ください。</li>
     </ul>
   </details>
+  <details class="notice" data-sync-mode="drive" hidden>
+    <summary>台本はこのブラウザと、あなたのGoogleドライブの「アプリ専用の隠しフォルダ」に自動で保存され、同じアカウントでログインしたPCやスマホと同期されます。<span class="more-link">詳しく</span></summary>
+    <ul>
+      <li>見られるのは、あなたのGoogleアカウントだけです。このアプリを作った人を含め、ほかの人には見えません。</li>
+      <li>隠しフォルダなので、Googleドライブの画面には表示されません。</li>
+      <li>一覧を開いたときと、書いている途中に、自動で同期します。ログインは約1時間で切れるので、「再接続」と出たらタップしてください。</li>
+      <li>2台で同じ作品を同時に書き換えたときは、片方を「（この端末の版）」として残します。</li>
+      <li>念のため、大切な台本は［保存・コピー］→「編集データ（.json）を保存」でも保管しておくと安心です。</li>
+      <li>くわしくは<a href="manual.html#sync">使い方</a>をご覧ください。</li>
+    </ul>
+  </details>
   <button id="btn-import" class="continue">続きから書く<small>→ 編集データ（.json）を読み込み</small></button>
+  <button id="sync-card" class="continue" hidden>Googleドライブと同期中<small id="sync-status"></small></button>
+  <button id="btn-sync-setup" class="text-link" hidden>PCとスマホで自動同期する ›</button>
+  <button id="btn-import-small" class="text-link" hidden>編集データ（.json）を読み込む ›</button>
   <input id="import-file" type="file" accept=".json,application/json" hidden>
-  <p id="list-label" class="list-label" hidden>ブラウザに読み込み済みのシナリオ</p>
+  <p id="list-label" class="list-label" hidden></p>
   <ul id="script-list" class="script-list"></ul>
   <p id="list-empty" class="empty" hidden>まだ作品がありません。<br>「＋ 新規」から書き始めましょう。</p>
 </section>
@@ -188,6 +204,24 @@
   <button data-item="close" class="cancel">閉じる</button>
 </dialog>
 
+<!-- 保存方法 -->
+<dialog id="sync-dialog" class="sheet-dialog">
+  <h2>保存方法</h2>
+  <div class="sheet-note" data-sync-mode="local">
+    <p>Googleでログインすると、台本があなたのGoogleドライブの「アプリ専用の隠しフォルダ」にも保存され、PCとスマホで自動で同じになります。</p>
+    <p>見られるのはあなたのアカウントだけです。このアプリを作った人を含め、ほかの人には見えません。</p>
+    <p>編集データ（.json）で持ち運んでいた作品は、端末ごとに別の作品として2つ並ぶことがあります。古いほうは一覧の［…］→「削除」で整理してください。</p>
+  </div>
+  <div class="sheet-note" data-sync-mode="drive">
+    <p>Googleドライブ<span id="sync-account"></span>と同期しています。</p>
+    <p>同期をやめても、台本はこの端末に残ります。</p>
+  </div>
+  <button data-sync="drive" data-sync-mode="local">Googleでログインして同期する</button>
+  <button data-sync="now" data-sync-mode="drive">今すぐ同期</button>
+  <button data-sync="local" data-sync-mode="drive" class="danger">同期をやめる（この端末だけに保存）</button>
+  <button data-sync="close" class="cancel">閉じる</button>
+</dialog>
+
 <div id="toast" class="toast" hidden></div>
 <div id="veil" class="veil" hidden></div>
 <div id="busy" class="busy" hidden><div>作成中…</div></div>
@@ -199,6 +233,7 @@
 <script src="js/layout.js"></script>
 <script src="js/render.js"></script>
 <script src="js/export.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

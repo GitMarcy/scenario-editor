@@ -53,13 +53,18 @@ async function flush() {
   doc.updatedAt = Date.now();
   try {
     await putScript(doc);
+    syncPush(doc.id);
   } catch (e) {
     dirty = true;
     toast('保存に失敗しました：' + e.message, 4000);
   }
 }
 
-document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+// 画面に戻ってきたら、一覧ならほかの端末の変更を取りに行く（編集中は開いている台本を書き換えないよう送るだけ）
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flush();
+  else if (!doc && !$('#view-list').hidden) syncList();
+});
 window.addEventListener('pagehide', flush);
 
 // ---------- 作品一覧 ----------
@@ -68,6 +73,18 @@ async function showList() {
   await flush();
   doc = null;
   localStorage.removeItem('lastOpened');
+  await renderList();
+  showView('list');
+  syncList();
+}
+
+// 同期して、手元の作品が変わっていたら一覧を描き直す
+async function syncList() {
+  if (syncEnabled() && await syncAll() && !doc) renderList();
+}
+
+async function renderList() {
+  renderSync();
   const scripts = await listScripts();
   const ul = $('#script-list');
   ul.replaceChildren(...scripts.map(s => {
@@ -85,7 +102,6 @@ async function showList() {
   }));
   $('#list-empty').hidden = scripts.length > 0;
   $('#list-label').hidden = scripts.length === 0;
-  showView('list');
 }
 
 $('#btn-new').onclick = async () => {
@@ -94,7 +110,7 @@ $('#btn-new').onclick = async () => {
   openScript(d.id, 'cover');
 };
 
-$('#btn-import').onclick = () => $('#import-file').click();
+$('#btn-import').onclick = $('#btn-import-small').onclick = () => $('#import-file').click();
 
 $('#import-file').onchange = async e => {
   const file = e.target.files[0];
@@ -124,7 +140,74 @@ $('#item-dialog').addEventListener('click', async e => {
   } else if (action === 'delete') {
     if (confirm(`「${s.cover.title || '無題'}」を削除しますか？元に戻せません。`)) {
       await deleteScript(s.id);
+      syncDelete(s.id);
       showList();
+    }
+  }
+});
+
+// ---------- 保存方法（Googleドライブとの同期） ----------
+
+// 同期しているかどうかで、一覧の入口・注意書き・見出しを切り替える
+function renderSync() {
+  const on = syncEnabled();
+  $$('[data-sync-mode]').forEach(el => { el.hidden = el.dataset.syncMode !== (on ? 'drive' : 'local'); });
+  $('#btn-import').hidden = on;
+  $('#sync-card').hidden = !on;
+  $('#btn-import-small').hidden = !on;
+  $('#btn-sync-setup').hidden = on || !syncAvailable;
+  $('#list-label').textContent = on ? 'Googleドライブと同期しているシナリオ' : 'ブラウザに読み込み済みのシナリオ';
+  const lastAt = Number(localStorage.getItem('syncLastAt'));
+  $('#sync-status').textContent = {
+    busy: '同期中…',
+    done: lastAt ? `${formatDate(lastAt).slice(-5)} 同期済み・タップで設定` : 'タップで設定',
+    auth: 'ログインが切れました。タップして再接続',
+    offline: 'オフラインです。つながったら同期します',
+    error: '同期できませんでした。タップしてやり直す',
+  }[syncInfo.status];
+  const email = localStorage.getItem('driveEmail');
+  $('#sync-account').textContent = email ? `（${email}）` : '';
+}
+syncInfo.onchange = renderSync;
+
+// ログインのウィンドウはタップの中ですぐ開く必要があるので、Googleのスクリプトは先に読んでおく
+function openSyncDialog() {
+  loadGis().catch(() => {});
+  renderSync();
+  $('#sync-dialog').showModal();
+}
+$('#btn-sync-setup').onclick = openSyncDialog;
+
+$('#sync-card').onclick = () => {
+  if (syncInfo.status === 'auth') reconnect();
+  else if (syncInfo.status === 'error' || syncInfo.status === 'offline') syncList();
+  else openSyncDialog();
+};
+
+function reconnect() {
+  return connectDrive().then(() => {
+    fetchDriveEmail().then(renderSync);
+    return syncList();
+  }, e => toast(e.message, 4000));
+}
+
+$('#sync-dialog').addEventListener('click', e => {
+  const action = e.target.dataset.sync;
+  if (!action) return;
+  $('#sync-dialog').close();
+  if (action === 'drive') {
+    connectDrive().then(() => {
+      localStorage.setItem('syncMode', 'drive');
+      fetchDriveEmail().then(renderSync);
+      toast('Googleドライブとの同期を始めました');
+      return syncList();
+    }, e => toast(e.message, 4000));
+  } else if (action === 'now') {
+    if (driveToken()) syncList(); else reconnect();
+  } else if (action === 'local') {
+    if (confirm('Googleドライブとの同期をやめますか？台本はこの端末に残ります。')) {
+      disconnectDrive();
+      renderSync();
     }
   }
 });
@@ -132,6 +215,7 @@ $('#item-dialog').addEventListener('click', async e => {
 // ---------- 編集 ----------
 
 async function openScript(id, tab) {
+  await syncIdle(); // 同期中に開くと、取ってきた版を編集中の版で上書きしてしまうので待つ
   const d = await getScript(id);
   if (!d) return showList();
   doc = d;
@@ -1264,5 +1348,7 @@ function toastAction(msg, label, fn, ms = 6000) {
 navigator.storage?.persist?.();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {}); // file:// では使えない
 
+// 同期中なら、ほかの端末の変更を取ってきてから開く
 const last = localStorage.getItem('lastOpened');
-if (last) openScript(last); else showList();
+if (syncEnabled()) loadGis().catch(() => {});
+if (last) { if (syncEnabled()) syncAll(); openScript(last); } else showList();

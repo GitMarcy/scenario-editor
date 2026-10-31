@@ -1,9 +1,9 @@
 // オフライン用キャッシュ。オンラインなら最新を取りに行き、オフラインならキャッシュを使う。
 // ブラウザのHTTPキャッシュ（GitHub Pagesは10分）を通すと新旧のファイルが混ざるので、必ずサーバーに確かめる
-const CACHE = 'scenario-editor-v31';
+const CACHE = 'scenario-editor-v32';
 const ASSETS = [
-  './', 'index.html', 'manual.html', 'style.css', 'manifest.webmanifest',
-  'js/app.js', 'js/store.js', 'js/parser.js', 'js/layout.js', 'js/render.js', 'js/export.js',
+  './', 'index.html', 'manual.html', 'privacy.html', 'style.css', 'manifest.webmanifest',
+  'js/app.js', 'js/store.js', 'js/parser.js', 'js/layout.js', 'js/render.js', 'js/export.js', 'js/sync.js',
   'icons/icon-180.png', 'icons/icon-512.png',
 ];
 
