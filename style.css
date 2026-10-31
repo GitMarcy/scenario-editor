@@ -441,8 +441,7 @@ ul.sheet-note li.important { list-style: none; margin: 8px 0 8px -1.3em; padding
 .google-mock .s { margin: 0 0 8px; color: #5f6368; }
 .google-mock .btns { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0 18px; }
 .google-mock .btns span { padding: 5px 14px; border-radius: 16px; font-weight: 600; white-space: nowrap; }
-.google-mock .link { color: #1a73e8; padding-left: 4px; padding-right: 4px; }
-.google-mock .fill { background: #1a73e8; color: #fff; }
+.google-mock .fill { border: 1px solid #1a73e8; background: #1a73e8; color: #fff; }
 .google-mock .outline { border: 1px solid #747775; color: #1a73e8; background: #fff; }
 /* 押すところに赤い丸と「ここを押す」を付ける（白地の上なので色は固定） */
 .google-mock .tap { position: relative; outline: 2px solid #d23b2a; outline-offset: 3px; }
