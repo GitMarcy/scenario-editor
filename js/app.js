@@ -884,7 +884,8 @@ $('#btn-arrows').addEventListener('click', () => {
   $('.toolbar-row.inserts').scrollLeft = 0;
 });
 
-// 長押しでくり返し動かす
+// 長押しでくり返し動かす。
+// iPhoneでは指で押した瞬間でないと別の段落に移れない（キーボードが閉じる）ので、くり返しは段落の端で止める
 let moveTimer = null;
 function stopMoving() { clearTimeout(moveTimer); moveTimer = null; }
 $('#toolbar').addEventListener('pointerdown', e => {
@@ -892,10 +893,16 @@ $('#toolbar').addEventListener('pointerdown', e => {
   if (!b || !doc) return;
   stopMoving();
   moveCaret(b.dataset.move);
-  const repeat = delay => { moveTimer = setTimeout(() => { moveCaret(b.dataset.move); repeat(80); }, delay); };
+  const repeat = delay => {
+    moveTimer = setTimeout(() => { if (moveCaret(b.dataset.move, true)) repeat(80); }, delay);
+  };
   repeat(400);
 });
 for (const type of ['pointerup', 'pointercancel', 'pointerleave']) $('#toolbar').addEventListener(type, stopMoving);
+// iPhoneで長押しや2度押しをすると、ボタンの文字の選択や拡大が始まってカーソルが外れるので止める
+$('#toolbar').addEventListener('touchstart', e => {
+  if (e.target.closest('[data-move]')) e.preventDefault();
+}, { passive: false });
 
 // 入力中の段落は textarea の文字がそのまま見えるので、ブラウザが折り返した見た目どおりに動かす。
 // 同じ書式の写しを作り、カーソルを置ける位置ごとに行（top）と横の位置（left）を測る
@@ -924,7 +931,8 @@ function caretPositions(ta) {
   return out;
 }
 
-function moveCaret(dir) {
+// 動かせたら true。inBlock なら段落をまたがない
+function moveCaret(dir, inBlock = false) {
   if (!blockTa(cur)) cur = doc.blocks.length - 1;
   const ta = blockTa(cur);
   if (document.activeElement !== ta) ta.focus();
@@ -933,6 +941,7 @@ function moveCaret(dir) {
 
   if (dir === 'left' || dir === 'right') {
     const v = ta.value;
+    if (s === e && (dir === 'left' ? s === 0 : s === v.length) && inBlock) return false;
     if (s !== e) {
       const p = dir === 'left' ? s : e;
       ta.setSelectionRange(p, p);
@@ -945,7 +954,8 @@ function moveCaret(dir) {
       const p = s + (v.codePointAt(s) > 0xFFFF ? 2 : 1);
       ta.setSelectionRange(p, p);
     } else if (i < last) focusBlock(i + 1, 0);
-    return showCaretLine();
+    showCaretLine();
+    return true;
   }
 
   // 上下は、1行上・下の、横の位置がいちばん近いところへ。段落の端では前後の段落の最後・最初の行へ
@@ -963,8 +973,10 @@ function moveCaret(dir) {
       // いちばん上の行の↑は行の頭へ、いちばん下の行の↓は行の末尾へ
       const p = dir === 'up' ? 0 : ta.value.length;
       ta.setSelectionRange(p, p);
-      return showCaretLine();
+      showCaretLine();
+      return false;
     }
+    if (inBlock) return false;
     const tp = caretPositions(blockTa(j));
     const top = dir === 'up' ? tp[tp.length - 1].top : tp[0].top;
     line = tp.filter(p => p.top === top);
@@ -973,18 +985,21 @@ function moveCaret(dir) {
   if (j === i) ta.setSelectionRange(p, p);
   else focusBlock(j, p);
   showCaretLine();
+  return true;
 }
 
-// カーソルのある行が見えるようにスクロールする
+// カーソルのある行がツールバーの下やキーボードに隠れたら、見えるところまで送る。
+// ページ全体は動かさず、本文の欄だけをスクロールする（revealCaretBlock と同じ）
 function showCaretLine() {
   const ta = blockTa(cur);
   const here = caretPositions(ta).find(p => p.at === ta.selectionStart);
   if (!here) return;
-  const mark = document.createElement('div');
-  Object.assign(mark.style, { position: 'absolute', left: '0', width: '1px', top: ta.offsetTop + here.top + 'px', height: getComputedStyle(ta).lineHeight });
-  ta.parentNode.append(mark);
-  mark.scrollIntoView({ block: 'nearest' });
-  mark.remove();
+  const lineTop = ta.getBoundingClientRect().top + here.top;
+  const lineBottom = lineTop + parseFloat(getComputedStyle(ta).lineHeight);
+  const top = $('#toolbar').getBoundingClientRect().bottom + 8;
+  const bottom = panelsEl.getBoundingClientRect().bottom - 8;
+  if (lineTop < top) panelsEl.scrollTop -= top - lineTop;
+  else if (lineBottom > bottom) panelsEl.scrollTop += lineBottom - bottom;
 }
 
 // 空の段落ならそこに、書きかけの段落なら次の段落に、種類と書き出しを入れる
