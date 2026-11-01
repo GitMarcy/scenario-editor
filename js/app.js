@@ -302,6 +302,9 @@ function renderCharacters() {
       <div class="char-row age-job">
         <label class="field"><span>年齢</span><input data-k="age" type="text" placeholder="２５"></label>
         <label class="field"><span>職業</span><input data-k="job" type="text" placeholder="フリーター"></label>
+        <div class="field char-copy"><span>名前と年齢をコピー</span><button data-act="copy" aria-label="名前と年齢をコピー">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </button></div>
       </div>
       <div class="char-row">
         <label class="field"><span>名前の表記</span><input data-k="label" type="text"></label>
@@ -341,6 +344,15 @@ charList.addEventListener('click', e => {
   if (!act) return;
   const i = [...charList.children].indexOf(e.target.closest('.char'));
   const c = doc.characters[i];
+  // 本文の初登場で書く「田中蓮（２５）」。ふりがながあれば ｜田中蓮《たなかれん》（２５） にする
+  if (act === 'copy') {
+    const name = c.name.trim(), age = c.age.trim();
+    if (!name) return toast('名前を入力してください');
+    const s = rubyMarkup(name, c.nameRuby.trim()) + (age ? `（${age}）` : '');
+    navigator.clipboard.writeText(s).then(() => toast(`コピーしました：${s}`),
+      err => toast('失敗しました：' + err.message, 4000));
+    return;
+  }
   if (act === 'del') {
     if (Object.values(c).some(Boolean) && !confirm(`「${c.name || c.label || '名前なし'}」を削除しますか？`)) return;
     doc.characters.splice(i, 1);

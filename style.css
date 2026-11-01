@@ -161,10 +161,17 @@ a.btn { display: inline-block; text-decoration: none; }
   border: 1px solid var(--line); background: var(--surface);
 }
 .char-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.char-row.age-job { grid-template-columns: 3.6em 1fr; }
+.char-row.age-job { grid-template-columns: 3.6em 1fr auto; }
+.char-copy span { white-space: nowrap; }
+/* ボタンは入力欄と同じ高さ（行の高さ20px＋上下の余白8px＋枠1px）にする */
+.char-copy button {
+  display: block; width: 100%; padding: 8px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer;
+}
+.char-copy svg { display: block; width: 20px; height: 20px; margin: 0 auto; fill: currentColor; }
 .char .field { margin-bottom: 10px; min-width: 0; }
 .char .field span { font-size: 12px; margin-bottom: 4px; }
-.char .field input { font-size: 16px; padding: 8px 10px; }
+.char .field input { font-size: 16px; line-height: 20px; padding: 8px 10px; }
 .char-actions { display: flex; align-items: center; gap: 4px; }
 .char-actions .num { margin-right: auto; font-size: 13px; color: var(--muted); }
 .char-actions button {
