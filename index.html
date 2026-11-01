@@ -108,12 +108,17 @@
           <button id="btn-select" class="select-btn">選択</button>
         </div>
         <div class="toolbar-row inserts">
+          <span class="mode-wrap"><button id="btn-arrows" class="mode-btn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14 5.3"/><path d="M4 12a8 8 0 0 1 14-5.3"/><path d="M18 2.5v4.2h-4.2"/><path d="M6 21.5v-4.2h4.2"/></svg><span>ボタン<br>切替</span></button></span>
           <span id="name-chips" class="chips"></span>
           <button data-insert="kakko">「」</button>
           <button data-insert="（朝）">（朝）</button>
           <button data-insert="（夕）">（夕）</button>
           <button data-insert="（夜）">（夜）</button>
           <button data-insert="batsu">×××</button>
+          <button data-move="left" aria-label="左へ">←</button>
+          <button data-move="up" aria-label="上へ">↑</button>
+          <button data-move="down" aria-label="下へ">↓</button>
+          <button data-move="right" aria-label="右へ">→</button>
         </div>
         <div class="toolbar-row select-bar">
           <span id="select-count" class="select-count"></span>
@@ -137,6 +142,7 @@
           <li>段落ごとに、上の<b>［柱］［ト書き］［セリフ］</b>から種類を選んでから書きます。「○」で書き始めると柱、空白を3つ入れて書き始めるとト書き、<code>名前「</code>と書き始めるとセリフに自動でなります。</li>
           <li><b>柱</b>：選ぶと「○」が入ります。「○」を消すと、種類を選ぶ前に戻ります。（昼）は自動で省きます。柱の前は自動で1行空きます（紙の1行目に来るときは空けません）。</li>
           <li><b>セリフ</b>：<code>名前「セリフ」</code>。名前のボタンを押すと「名前「」」が入ります。2行目以降は自動で1字下げます。</li>
+          <li><b>カーソル移動</b>：ボタンの左はしの［ボタン切替］を押すと、名前などのボタンが［←］［↑］［↓］［→］に変わり、カーソルを1字・1行ずつ動かせます。長押しで続けて動きます。もう一度押すと元に戻ります。</li>
           <li><b>ト書き</b>：自動で3字下げます。［×××］で場面転換の「×　　　×　　　×」が入ります。</li>
           <li><b>ルビ</b>：［ルビ］を押してから、ルビを付けたい文字をタップします。1つ目のタップで1字、2つ目のタップでその間の文字がまとめて選べます。［ルビ入力］を押してふりがなを入れ、終わったら［完了］を押します。ルビの付いた文字を選んで［ルビ入力］を押すと、直したり外したりできます。入力中の段落では <code>｜親文字《ふりがな》</code> と出ます（この形で直接打っても付きます）。</li>
           <li>段落を消したり順番を入れ替えたりするときは［選択］を押し、段落をタップします。指（マウス）でなぞるか、2つ目のタップで、その間の段落もまとめて選べます。［↑］［↓］で選んだ段落を1つずつ上下に動かし、［削除］で消します。</li>

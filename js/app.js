@@ -860,6 +860,7 @@ $('#toolbar').addEventListener('pointerdown', e => {
 });
 $('#toolbar').addEventListener('click', e => {
   const b = e.target.closest('button');
+  if (b?.dataset.move && e.detail === 0) return moveCaret(b.dataset.move); // キーボードで押したとき（指やマウスは pointerdown で動かす）
   if (!b || !doc || !(b.dataset.type || b.dataset.insert)) return;
   if (!blockTa(cur)) cur = doc.blocks.length - 1;
   if (document.activeElement !== blockTa(cur)) focusBlock(cur);
@@ -873,6 +874,118 @@ $('#toolbar').addEventListener('click', e => {
   } else if (kind === 'batsu') startBlock('togaki', '　×　　　×　　　×');
   else insertText(kind);
 });
+
+// ---------- 矢印のボタン ----------
+// ［ボタン切替］で、名前などのボタンと矢印のボタンを切り替える
+
+$('#btn-arrows').addEventListener('click', () => {
+  const on = $('#toolbar').classList.toggle('arrows');
+  $('#btn-arrows').setAttribute('aria-pressed', on);
+  $('.toolbar-row.inserts').scrollLeft = 0;
+});
+
+// 長押しでくり返し動かす
+let moveTimer = null;
+function stopMoving() { clearTimeout(moveTimer); moveTimer = null; }
+$('#toolbar').addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-move]');
+  if (!b || !doc) return;
+  stopMoving();
+  moveCaret(b.dataset.move);
+  const repeat = delay => { moveTimer = setTimeout(() => { moveCaret(b.dataset.move); repeat(80); }, delay); };
+  repeat(400);
+});
+for (const type of ['pointerup', 'pointercancel', 'pointerleave']) $('#toolbar').addEventListener(type, stopMoving);
+
+// 入力中の段落は textarea の文字がそのまま見えるので、ブラウザが折り返した見た目どおりに動かす。
+// 同じ書式の写しを作り、カーソルを置ける位置ごとに行（top）と横の位置（left）を測る
+const MIRROR_PROPS = ['boxSizing', 'width', 'paddingLeft', 'paddingRight', 'fontFamily', 'fontSize', 'fontWeight',
+  'fontVariantEastAsian', 'letterSpacing', 'lineHeight', 'textIndent', 'whiteSpace', 'lineBreak', 'wordBreak', 'overflowWrap'];
+
+function caretPositions(ta) {
+  const cs = getComputedStyle(ta);
+  const m = document.createElement('div');
+  for (const p of MIRROR_PROPS) m.style[p] = cs[p];
+  Object.assign(m.style, { position: 'absolute', left: '-9999px', top: '0', visibility: 'hidden', padding: `0 ${cs.paddingRight} 0 ${cs.paddingLeft}` });
+  const ats = [];
+  for (let k = 0; k < ta.value.length;) {
+    const ch = String.fromCodePoint(ta.value.codePointAt(k));
+    const s = document.createElement('span');
+    s.textContent = ch;
+    m.append(s);
+    ats.push(k);
+    k += ch.length;
+  }
+  m.append(document.createElement('span')); // 末尾
+  ats.push(ta.value.length);
+  document.body.append(m);
+  const out = [...m.children].map((s, k) => ({ at: ats[k], top: s.offsetTop, left: s.offsetLeft }));
+  m.remove();
+  return out;
+}
+
+function moveCaret(dir) {
+  if (!blockTa(cur)) cur = doc.blocks.length - 1;
+  const ta = blockTa(cur);
+  if (document.activeElement !== ta) ta.focus();
+  const i = cur, last = doc.blocks.length - 1;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+
+  if (dir === 'left' || dir === 'right') {
+    const v = ta.value;
+    if (s !== e) {
+      const p = dir === 'left' ? s : e;
+      ta.setSelectionRange(p, p);
+    } else if (dir === 'left') {
+      if (s > 0) {
+        const p = s - (s > 1 && /[\uDC00-\uDFFF]/.test(v[s - 1]) ? 2 : 1);
+        ta.setSelectionRange(p, p);
+      } else if (i > 0) focusBlock(i - 1);
+    } else if (s < v.length) {
+      const p = s + (v.codePointAt(s) > 0xFFFF ? 2 : 1);
+      ta.setSelectionRange(p, p);
+    } else if (i < last) focusBlock(i + 1, 0);
+    return showCaretLine();
+  }
+
+  // 上下は、1行上・下の、横の位置がいちばん近いところへ。段落の端では前後の段落の最後・最初の行へ
+  const pos = caretPositions(ta);
+  const c = dir === 'up' ? s : e;
+  const here = pos.find(p => p.at === c) || pos[pos.length - 1];
+  const tops = [...new Set(pos.map(p => p.top))];
+  const r = tops.indexOf(here.top) + (dir === 'up' ? -1 : 1);
+  let j = i, line = null;
+  if (r >= 0 && r < tops.length) {
+    line = pos.filter(p => p.top === tops[r]);
+  } else {
+    j = i + (dir === 'up' ? -1 : 1);
+    if (j < 0 || j > last) {
+      // いちばん上の行の↑は行の頭へ、いちばん下の行の↓は行の末尾へ
+      const p = dir === 'up' ? 0 : ta.value.length;
+      ta.setSelectionRange(p, p);
+      return showCaretLine();
+    }
+    const tp = caretPositions(blockTa(j));
+    const top = dir === 'up' ? tp[tp.length - 1].top : tp[0].top;
+    line = tp.filter(p => p.top === top);
+  }
+  const p = line.reduce((a, b) => Math.abs(b.left - here.left) < Math.abs(a.left - here.left) ? b : a).at;
+  if (j === i) ta.setSelectionRange(p, p);
+  else focusBlock(j, p);
+  showCaretLine();
+}
+
+// カーソルのある行が見えるようにスクロールする
+function showCaretLine() {
+  const ta = blockTa(cur);
+  const here = caretPositions(ta).find(p => p.at === ta.selectionStart);
+  if (!here) return;
+  const mark = document.createElement('div');
+  Object.assign(mark.style, { position: 'absolute', left: '0', width: '1px', top: ta.offsetTop + here.top + 'px', height: getComputedStyle(ta).lineHeight });
+  ta.parentNode.append(mark);
+  mark.scrollIntoView({ block: 'nearest' });
+  mark.remove();
+}
 
 // 空の段落ならそこに、書きかけの段落なら次の段落に、種類と書き出しを入れる
 function startBlock(type, text, caret = text.length) {

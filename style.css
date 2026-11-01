@@ -6,6 +6,7 @@
   --line: #e2ddd2;
   --accent: #b5442c;
   --accent-text: #ffffff;
+  --mode-btn: #8b5a3c; /* ［ボタン切替］の茶色 */
   --hashira: #e4eefb;
   --serifu: #fbf0dc;
   --togaki: transparent;
@@ -27,6 +28,7 @@
     --muted: #9c968c;
     --line: #3a3732;
     --accent: #e0694f;
+    --mode-btn: #c4916b;
     --hashira: #1f2d42;
     --serifu: #3a2f1c;
     color-scheme: dark;
@@ -39,6 +41,7 @@
   --muted: #9c968c;
   --line: #3a3732;
   --accent: #e0694f;
+  --mode-btn: #c4916b;
   --hashira: #1f2d42;
   --serifu: #3a2f1c;
   color-scheme: dark;
@@ -201,6 +204,29 @@ a.btn { display: inline-block; text-decoration: none; }
 .toolbar .chips button { border-color: var(--badge-serifu); color: var(--badge-serifu); }
 .toolbar .chips button.has-ruby { padding-top: 0; padding-bottom: 2px; }
 .toolbar .chips rt { font-size: 9px; line-height: 1; }
+/* 入力の行のボタンは、ルビ付きの名前や2行の切り替えボタンも同じ高さにそろえる */
+.toolbar-row.inserts button {
+  height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  padding-top: 0; padding-bottom: 0;
+}
+/* 名前などのボタンと矢印のボタンの切り替え。横にスクロールしても左はしに残す。
+   角の丸みからくぐるボタンが見えないよう、背景と同じ色の四角に載せる */
+.toolbar .mode-wrap {
+  position: sticky; left: 0; z-index: 1; flex: none; display: flex;
+  padding-right: 4px; background: var(--bg);
+}
+.toolbar .mode-btn {
+  gap: 3px; padding: 0 7px 0 5px;
+  border: 0; border-radius: 17px;
+  background: color-mix(in srgb, var(--mode-btn) 14%, var(--bg)); color: var(--accent);
+  font-family: var(--ui-font); font-size: 10px; font-weight: 600; line-height: 1.2; text-align: left;
+}
+.toolbar .mode-btn svg { width: 18px; height: 18px; flex: none; }
+/* 矢印のときは色を変えて、どちらのボタンが出ているかわかるようにする */
+.toolbar.arrows .mode-btn { background: color-mix(in srgb, var(--badge-hashira) 16%, var(--bg)); color: var(--badge-hashira); }
+.toolbar .inserts [data-move] { display: none; min-width: 48px; font-family: var(--ui-font); }
+.toolbar.arrows .inserts [data-move] { display: inline-flex; }
+.toolbar.arrows .inserts [data-insert] { display: none; }
 
 /* 種類の選択 */
 /* 角の丸めは overflow: hidden で切り抜かず、両端のボタンに付ける。
