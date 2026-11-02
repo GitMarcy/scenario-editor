@@ -323,6 +323,11 @@ a.btn { display: inline-block; text-decoration: none; }
   display: flex; justify-content: space-around; align-items: flex-end;
 }
 .render .rt > span { font-size: .42em; line-height: 1; } /* RUBY_SIZE（app.js）と合わせる */
+/* セリフの「。」」の「。」（app.js の kutenWarnings） */
+.render .kuten-warn {
+  display: inline-block; width: 1em; height: var(--lh); vertical-align: top;
+  background: color-mix(in srgb, #d23b2a 22%, transparent);
+}
 .cells textarea {
   position: absolute; left: 0; top: 0; z-index: 1;
   width: 20.5em; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 0;
@@ -338,6 +343,11 @@ a.btn { display: inline-block; text-decoration: none; }
 .blk.gap .badge { margin-top: var(--lh); }
 .blk.gap textarea { top: var(--lh); height: calc(100% - var(--lh)); }
 .blk.gap .render > div:first-child { background: var(--surface); }
+/* 入力中のセリフにうっすら出す「名前「」と「」」（app.js の updateGhosts で位置を決める） */
+.input-ghost {
+  position: absolute; z-index: 2; pointer-events: none; white-space: pre;
+  color: var(--muted); opacity: .45;
+}
 .cells textarea::placeholder { color: var(--muted); font-family: var(--ui-font); font-size: 13px; }
 /* 入力中の段落はtextareaの文字を出し、それ以外は組版どおりの表示を出す */
 .blk:focus-within textarea { color: var(--text); }

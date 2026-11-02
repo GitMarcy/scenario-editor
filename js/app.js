@@ -423,11 +423,15 @@ function refreshLayout(all = false, changed = -1) {
     el.classList.toggle('gap', gs.length > 0 && lines[gs[0]].type === 'blank');
     if (all || i === changed) {
       // ルビ入力モードでは、タップで選べるよう1字ずつに段落の何文字目か（data-p）を付ける
+      const warn = kutenWarnings(gs.map(g => lines[g]));
       let p = 0;
       el.querySelector('.render').innerHTML = gs.map(g => {
         const l = lines[g], p0 = p;
         p += l.chars.length;
-        const charHtml = rubyMode ? (ch, k) => `<span class="ch" data-p="${p0 + k}">${escapeHtml(ch)}</span>` : undefined;
+        const charHtml = (ch, k) => {
+          const cls = [rubyMode && 'ch', warn.has(p0 + k) && 'kuten-warn'].filter(Boolean).join(' ');
+          return cls ? `<span class="${cls}"${rubyMode ? ` data-p="${p0 + k}"` : ''}>${escapeHtml(ch)}</span>` : escapeHtml(ch);
+        };
         return `<div style="padding-left:${l.indent}em">${rubyHtml(l.chars, l.rubies, rubyTag, charHtml)}</div>`;
       }).join('');
     }
@@ -446,6 +450,18 @@ function refreshLayout(all = false, changed = -1) {
   const halves = Math.max(1, Math.ceil(n / LINES_PER_HALF));
   $('#body-stats').textContent = `本文 ${n}行 ／ ノンブル ${halves}（A4 ${Math.ceil(halves / 2)}枚・20×20換算 ${(n / 20).toFixed(1)}枚）`;
   updateCaret();
+}
+
+// セリフの「。」」は書かない決まりなので、「。」のマスに色を付けて知らせる。
+// 「。。」」のように2つ以上続くのはわざとなので付けない。段落の何文字目かの集まりを返す
+function kutenWarnings(paraLines) {
+  const out = new Set();
+  if (paraLines[0]?.type !== 'serifu') return out;
+  const chars = paraLines.flatMap(l => l.chars);
+  chars.forEach((ch, k) => {
+    if (ch === '。' && chars[k + 1] === '」' && chars[k - 1] !== '。') out.add(k);
+  });
+  return out;
 }
 
 // 段落の上に出すルビ。原稿用紙と同じく rubySpread の範囲に1字ずつ均等に並べる（1em＝親文字1字）
@@ -525,6 +541,7 @@ function focusBlock(i, caret) {
 
 function blockChanged(i) {
   refreshLayout(false, i);
+  updateGhosts(); // 名前の分の字下げで折り返しが変わるので、高さを合わせる前に
   fitBlock(i);
   updateToolbar();
   clearTimeout(updateChips.timer);
@@ -561,6 +578,10 @@ function setType(i, type) {
     b.text = '○' + b.text;
     caret++;
   }
+  // 名前のないト書きとセリフを切り替えたら、カーソルは文の終わりへ（続けて書くか、名前のボタンを押す）
+  if ((b.type === 'togaki' && type === 'serifu') || (b.type === 'serifu' && type === 'togaki')) {
+    if (!SERIFU_RE.test(b.text)) caret = b.text.length;
+  }
   b.type = type;
   ta.value = b.text;
   setBlockType(blockEl(i), type);
@@ -595,12 +616,17 @@ function detectType(i, composing) {
 blocksEl.addEventListener('focusin', e => {
   if (e.target.tagName !== 'TEXTAREA') return;
   cur = indexOf(e.target);
+  updateGhosts();
   fitBlock(cur);
   updateToolbar();
   updateCaret();
 });
 blocksEl.addEventListener('focusout', e => {
-  if (e.target.tagName === 'TEXTAREA') e.target.closest('.cells').style.minHeight = '';
+  if (e.target.tagName !== 'TEXTAREA') return;
+  e.target.closest('.cells').style.minHeight = '';
+  e.target.style.textIndent = '';
+  nameGhost.remove();
+  closeGhost.remove();
 });
 document.addEventListener('selectionchange', () => {
   if (document.activeElement?.closest?.('#body-blocks')) updateCaret();
@@ -715,12 +741,22 @@ function nextType(type) {
   return type ? 'togaki' : null;
 }
 
+// 「」」で閉じていないセリフ
+function openSerifu(b) {
+  return b?.type === 'serifu' && b.text.trim() && !/」[\s　]*$/.test(b.text);
+}
+
 // セリフの途中で改行したら、閉じていない「」」を補う
 function closeSerifu(i) {
   const b = doc.blocks[i];
-  if (b.type !== 'serifu' || !b.text.trim() || /」[\s　]*$/.test(b.text)) return;
+  if (!openSerifu(b)) return;
   b.text = b.text.replace(/[\s　]+$/, '') + '」';
   blockTa(i).value = b.text;
+}
+
+// セリフ末尾の「」」の手前で改行したら、送られる「」」は捨てる（closeSerifu で付け直すので2つにならない）
+function dropTrailingClose(b, after) {
+  return openSerifu(b) && /^」[\s　]*$/.test(after) ? '' : after;
 }
 
 // 以前のセリフの続き（行頭が空白）は、空白を消したら種類を選ぶ前に戻す
@@ -734,9 +770,10 @@ blocksEl.addEventListener('beforeinput', e => {
   const b = doc.blocks[i];
   const ta = e.target;
   if (!b.type && !b.text.trim()) return;
-  const after = b.text.slice(ta.selectionEnd);
+  let after = b.text.slice(ta.selectionEnd);
   b.text = b.text.slice(0, ta.selectionStart);
   ta.value = b.text;
+  after = dropTrailingClose(b, after);
   closeSerifu(i);
   blockChanged(i);
   const type = nextType(b.type);
@@ -765,7 +802,7 @@ blocksEl.addEventListener('input', e => {
   const caretInRest = ta.value.length - ta.selectionEnd;
   ta.value = first;
   blockChanged(i);
-  const added = textToBlocks(rest.join('\n'));
+  const added = textToBlocks(dropTrailingClose(b, rest.join('\n')));
   if (!added.length) {
     // 改行だけが入ったとき（改行キーと同じ扱い）
     closeSerifu(i);
@@ -854,6 +891,36 @@ function insertText(text, caretOffset = text.length) {
   ta.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+// 名前のボタン。セリフの途中なら話す人の名前を入れ替え、ト書き（空でも）なら名前だけを入れる。
+// それ以外（空の段落など）は、次の段落に 名前「 を書き出す（「」」は改行したときに入る）
+function insertName(name, ruby) {
+  const b = doc.blocks[cur];
+  const markup = rubyMarkup(name, ruby);
+  const m = b.type === 'serifu' && b.text.match(SERIFU_RE);
+  if (m) {
+    if (parseRuby(m[1]).text === name) return;
+    // カーソルはセリフの中の同じ位置のまま。名前の中にあったときは「の後ろへ
+    const ta = blockTa(cur);
+    const shift = markup.length - m[1].length;
+    const caret = Math.max(ta.selectionStart + shift, markup.length + 1);
+    ta.setRangeText(markup, 0, m[1].length);
+    ta.selectionStart = ta.selectionEnd = caret;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  } else if (namelessSerifu(b)) {
+    // ト書きで書いてからセリフに変えた段落は、うっすら出していた「名前「」のところに名前を入れる。
+    // カーソルは文の終わり（「」」は改行したときに入る）
+    const ta = blockTa(cur);
+    ta.value = markup + (b.text.startsWith('「') ? '' : '「') + b.text;
+    const caret = ta.value.length - (/」$/.test(ta.value) ? 1 : 0);
+    ta.selectionStart = ta.selectionEnd = caret;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  } else if (b.type === 'togaki') {
+    insertText(markup);
+  } else {
+    startBlock('serifu', markup + '「');
+  }
+}
+
 // ボタンを押してもキーボードが閉じないように、フォーカスを奪わない
 $('#toolbar').addEventListener('pointerdown', e => {
   if (e.target.closest('button')) e.preventDefault();
@@ -868,10 +935,8 @@ $('#toolbar').addEventListener('click', e => {
 
   const kind = b.dataset.insert;
   if (kind === 'kakko') insertText('「」', 1);
-  else if (kind === 'name') {
-    const s = rubyMarkup(b.dataset.name, b.dataset.ruby) + '「」';
-    startBlock('serifu', s, s.length - 1);
-  } else if (kind === 'batsu') startBlock('togaki', '　×　　　×　　　×');
+  else if (kind === 'name') insertName(b.dataset.name, b.dataset.ruby);
+  else if (kind === 'batsu') startBlock('togaki', '　×　　　×　　　×');
   else insertText(kind);
 });
 
@@ -929,6 +994,56 @@ function caretPositions(ta) {
   const out = [...m.children].map((s, k) => ({ at: ats[k], top: s.offsetTop, left: s.offsetLeft }));
   m.remove();
   return out;
+}
+
+// 入力中のセリフに、まだ書いていない部分をうっすら出す。
+// 名前のないセリフ（ト書きから変えたときなど）は頭に「名前「」を出して名前のボタンへ誘い、
+// 閉じていなければ末尾に「」」を出す（改行すると closeSerifu で本当に入る）
+function ghostEl(text) {
+  const g = document.createElement('span');
+  g.className = 'input-ghost';
+  g.textContent = text;
+  g.setAttribute('aria-hidden', 'true');
+  return g;
+}
+const nameGhost = ghostEl('');
+const closeGhost = ghostEl('」');
+
+function namelessSerifu(b) {
+  return b?.type === 'serifu' && b.text.trim() && !LEAD_SPACE_RE.test(b.text) && !SERIFU_RE.test(b.text);
+}
+
+function updateGhosts() {
+  const ta = blockTa(cur);
+  const b = doc.blocks[cur];
+  const focused = ta && document.activeElement === ta;
+  const prefix = focused && namelessSerifu(b) ? '名前' + (b.text.startsWith('「') ? '' : '「') : '';
+  if (prefix) {
+    // 1行目の頭を名前の分だけ空ける（セリフは 1em のぶら下げなので、その分を引く）
+    ta.style.textIndent = `${prefix.length - 1}em`;
+    nameGhost.textContent = prefix;
+    nameGhost.style.left = ta.offsetLeft + 'px';
+    nameGhost.style.top = ta.offsetTop + 'px';
+    ta.parentElement.append(nameGhost);
+  } else {
+    if (ta) ta.style.textIndent = '';
+    nameGhost.remove();
+  }
+  if (!focused || !openSerifu(b)) return closeGhost.remove();
+  // 写しの末尾に「」」を置いて、折り返しも含めた位置を測る
+  const cs = getComputedStyle(ta);
+  const m = document.createElement('div');
+  for (const p of MIRROR_PROPS) m.style[p] = cs[p];
+  Object.assign(m.style, { position: 'absolute', left: '-9999px', top: '0', visibility: 'hidden', padding: `0 ${cs.paddingRight} 0 ${cs.paddingLeft}` });
+  const end = document.createElement('span');
+  end.textContent = '」';
+  end.style.display = 'inline-block'; // offsetTop を文字の上ではなく行の上で測る
+  m.append(ta.value.replace(/[\s　]+$/, ''), end);
+  document.body.append(m);
+  closeGhost.style.left = end.offsetLeft + 'px';
+  closeGhost.style.top = ta.offsetTop + end.offsetTop + 'px';
+  m.remove();
+  ta.parentElement.append(closeGhost);
 }
 
 // 動かせたら true。inBlock なら段落をまたがない
