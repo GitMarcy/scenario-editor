@@ -1363,49 +1363,142 @@ document.addEventListener('keydown', e => {
 
 // ---------- プレビュー ----------
 
+// 見ていた紙の位置。表示を切り替えたり本文を直したりしても、同じ紙のところから見られるようにする
+let previewPos = { id: null, sheet: 0, half: 0 };
+
 function renderPreview() {
   if (!doc) return;
   const scroller = $('#preview-scroller');
   const sheets = buildSheets(doc);
   const items = [];
-  for (const s of sheets) {
+  sheets.forEach((s, sheet) => {
     if (previewMode === 'half' && s.kind === 'grid') {
-      items.push(renderHalf(s.halves[0], { grid: showGrid }));
-      if (s.halves[1].lines.length) items.push(renderHalf(s.halves[1], { grid: showGrid }));
+      items.push({ node: renderHalf(s.halves[0], { grid: showGrid }), sheet, half: 0 });
+      if (s.halves[1].lines.length) items.push({ node: renderHalf(s.halves[1], { grid: showGrid }), sheet, half: 1 });
     } else {
-      items.push(renderSheet(s, { grid: showGrid }));
+      items.push({ node: renderSheet(s, { grid: showGrid }), sheet, half: 0 });
     }
-  }
+  });
   const availW = scroller.clientWidth - 24;
   const availH = scroller.clientHeight - 24;
-  scroller.replaceChildren(...items.map(node => {
+  scroller.classList.remove('zoomed');
+  scroller.replaceChildren(...items.map(({ node, sheet, half }) => {
     const w = parseFloat(node.style.width) * MM;
     const h = parseFloat(node.style.height) * MM;
-    const scale = Math.min(availW / w, availH / h);
     node.classList.add('paper');
-    node.style.transform = `scale(${scale})`;
     const wrap = document.createElement('div');
     wrap.className = 'page';
+    wrap.dataset.sheet = sheet;
+    wrap.dataset.half = half;
     const inner = document.createElement('div');
     inner.className = 'page-inner';
-    inner.style.width = `${w * scale}px`;
-    inner.style.height = `${h * scale}px`;
+    inner.dataset.w = w;
+    inner.dataset.h = h;
+    inner.dataset.fit = Math.min(availW / w, availH / h);
     inner.appendChild(node);
+    setPageZoom(inner, 1);
     wrap.appendChild(inner);
     return wrap;
   }));
-  scroller.scrollLeft = 0;
+  // 見開き→半ページなら同じ紙の右半分、半ページ→見開きならその半分を含む紙へ
+  let i = 0;
+  if (previewPos.id === doc.id) {
+    i = items.findIndex(it => it.sheet === previewPos.sheet && it.half === previewPos.half);
+    if (i < 0) i = items.findIndex(it => it.sheet === previewPos.sheet);
+    if (i < 0) i = items.length - 1;
+  }
+  scroller.scrollLeft = -Math.max(i, 0) * scroller.clientWidth; // 右から左へめくるので負の向き
   updateIndicator();
+}
+
+function currentPageIndex() {
+  const scroller = $('#preview-scroller');
+  return Math.round(Math.abs(scroller.scrollLeft) / scroller.clientWidth);
 }
 
 function updateIndicator() {
   const scroller = $('#preview-scroller');
   const n = scroller.children.length;
-  const i = Math.round(Math.abs(scroller.scrollLeft) / scroller.clientWidth) + 1;
-  $('#page-indicator').textContent = n ? `${Math.min(i, n)} / ${n}` : '';
+  if (!n || !scroller.clientWidth) { $('#page-indicator').textContent = ''; return; }
+  const i = Math.min(currentPageIndex(), n - 1);
+  $('#page-indicator').textContent = `${i + 1} / ${n}`;
+  const page = scroller.children[i];
+  previewPos = { id: doc?.id, sheet: +page.dataset.sheet, half: +page.dataset.half };
 }
 
 $('#preview-scroller').addEventListener('scroll', updateIndicator, { passive: true });
+
+// ---------- プレビューの拡大（スマホのピンチ・2度タップ） ----------
+// 画面全体ではなく紙だけを大きくする。拡大中は紙の中を指で動かして見て、めくるのは等倍に戻してから
+
+const MAX_ZOOM = 4;
+
+function setPageZoom(inner, z) {
+  const scale = inner.dataset.fit * z;
+  inner.dataset.z = z;
+  inner.style.width = `${inner.dataset.w * scale}px`;
+  inner.style.height = `${inner.dataset.h * scale}px`;
+  inner.firstChild.style.transform = `scale(${scale})`;
+}
+
+// 紙の上の (fx, fy)（0〜1の割合）が画面の (x, y) に来るように拡大する
+function zoomPageAt(inner, z, fx, fy, x, y) {
+  z = Math.min(MAX_ZOOM, Math.max(1, z));
+  setPageZoom(inner, z);
+  const page = inner.parentElement;
+  const r = inner.getBoundingClientRect();
+  page.scrollLeft += r.left + fx * r.width - x;
+  page.scrollTop += r.top + fy * r.height - y;
+  $('#preview-scroller').classList.toggle('zoomed', z > 1);
+}
+
+function pageInnerAt(x, y) {
+  return document.elementFromPoint(x, y)?.closest('.page')?.firstChild
+    || $('#preview-scroller').children[currentPageIndex()]?.firstChild;
+}
+
+let pinch = null;
+let lastTap = { t: 0, x: 0, y: 0 };
+const touchMid = ts => ({ x: (ts[0].clientX + ts[1].clientX) / 2, y: (ts[0].clientY + ts[1].clientY) / 2 });
+const touchDist = ts => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
+
+$('#preview-scroller').addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    const m = touchMid(e.touches);
+    const inner = pageInnerAt(m.x, m.y);
+    if (!inner) return;
+    const r = inner.getBoundingClientRect();
+    pinch = { inner, d: touchDist(e.touches), z: +inner.dataset.z, fx: (m.x - r.left) / r.width, fy: (m.y - r.top) / r.height };
+    e.preventDefault();
+  } else if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const now = Date.now();
+    if (now - lastTap.t < 300 && Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < 30) {
+      // 2度タップ：等倍なら押したところを拡大、拡大中なら等倍に戻す
+      const inner = pageInnerAt(t.clientX, t.clientY);
+      if (inner) {
+        const r = inner.getBoundingClientRect();
+        const fx = (t.clientX - r.left) / r.width, fy = (t.clientY - r.top) / r.height;
+        zoomPageAt(inner, +inner.dataset.z > 1 ? 1 : 2.5, fx, fy, t.clientX, t.clientY);
+      }
+      e.preventDefault();
+      lastTap.t = 0;
+    } else lastTap = { t: now, x: t.clientX, y: t.clientY };
+  }
+}, { passive: false });
+
+$('#preview-scroller').addEventListener('touchmove', e => {
+  if (!pinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  const m = touchMid(e.touches);
+  zoomPageAt(pinch.inner, pinch.z * touchDist(e.touches) / pinch.d, pinch.fx, pinch.fy, m.x, m.y);
+}, { passive: false });
+
+$('#preview-scroller').addEventListener('touchend', e => {
+  if (e.touches.length < 2) pinch = null;
+});
+// iPhoneがページ全体を拡大しないようにする
+$('#preview-scroller').addEventListener('gesturestart', e => e.preventDefault());
 
 $$('[data-pmode]').forEach(b => {
   b.classList.toggle('on', b.dataset.pmode === previewMode);
@@ -1493,8 +1586,9 @@ function toastAction(msg, label, fn, ms = 6000) {
 
 // ---------- 起動 ----------
 
+$('#app-version').textContent = `${APP_VERSION} · ${APP_UPDATED} 更新`;
 navigator.storage?.persist?.();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {}); // file:// では使えない
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}); // file:// では使えない
 
 // 同期中なら、ほかの端末の変更を取ってきてから開く
 const last = localStorage.getItem('lastOpened');

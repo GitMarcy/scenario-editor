@@ -58,6 +58,7 @@
   <p id="list-label" class="list-label" hidden></p>
   <ul id="script-list" class="script-list"></ul>
   <p id="list-empty" class="empty" hidden>まだ作品がありません。<br>「＋ 新規」から書き始めましょう。</p>
+  <p id="app-version" class="app-version"></p>
 </section>
 
 <!-- 編集 -->
@@ -275,6 +276,7 @@
 <div id="print-root"></div>
 
 <!-- ダブルクリック（file://）でも動くよう、モジュールではなく順番に読み込む -->
+<script src="js/version.js"></script>
 <script src="js/store.js"></script>
 <script src="js/parser.js"></script>
 <script src="js/layout.js"></script>
