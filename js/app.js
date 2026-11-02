@@ -323,9 +323,11 @@ function renderCharacters() {
 }
 
 // 名前の表記が空なら名前（とそのふりがな）を使うので、それを薄く出しておく
+// ふりがなの見本は、名前（表記）を書き始めたら消す（書いた名前と見本の読みが合わないので）
 function updateCharPlaceholders(el, c) {
+  el.querySelector('[data-k="nameRuby"]').placeholder = c.name ? '' : 'たなかれん';
   el.querySelector('[data-k="label"]').placeholder = c.name || '田中';
-  el.querySelector('[data-k="labelRuby"]').placeholder = (!c.label && c.nameRuby) || 'たなか';
+  el.querySelector('[data-k="labelRuby"]').placeholder = c.label ? '' : c.nameRuby || 'たなか';
 }
 
 charList.addEventListener('input', e => {

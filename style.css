@@ -157,6 +157,8 @@ a.btn { display: inline-block; text-decoration: none; }
   border: 1px solid var(--line); background: var(--surface); color: var(--text);
 }
 .field textarea { line-height: 1.7; resize: vertical; }
+/* 見本の文字は、書いた文字と見分けやすいよう薄めにする（ブラウザまかせだと濃く見える） */
+.field input::placeholder, .field textarea::placeholder { color: color-mix(in srgb, var(--muted) 50%, transparent); opacity: 1; }
 .hint { font-size: 13px; color: var(--muted); line-height: 1.6; }
 
 /* 人物 */
