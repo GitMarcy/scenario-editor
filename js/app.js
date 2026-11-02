@@ -930,7 +930,8 @@ $('#toolbar').addEventListener('click', e => {
   if (b?.dataset.move && e.detail === 0) return moveCaret(b.dataset.move); // キーボードで押したとき（指やマウスは pointerdown で動かす）
   if (!b || !doc || !(b.dataset.type || b.dataset.insert)) return;
   if (!blockTa(cur)) cur = doc.blocks.length - 1;
-  if (document.activeElement !== blockTa(cur)) focusBlock(cur);
+  // キーボードが閉じるなどでフォーカスが外れていても、外れる前のカーソルの位置に戻す（末尾へ飛ばさない）
+  if (document.activeElement !== blockTa(cur)) focusBlock(cur, blockTa(cur).selectionStart);
   if (b.dataset.type) return setType(cur, b.dataset.type);
 
   const kind = b.dataset.insert;
