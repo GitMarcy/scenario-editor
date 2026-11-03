@@ -615,8 +615,12 @@ function detectType(i, composing) {
   delete el.dataset.auto;
 }
 
+// 最後に入力していた段落。別の段落に移ったら、そのセリフの閉じていない「」」を補う
+let lastTa = null;
 blocksEl.addEventListener('focusin', e => {
   if (e.target.tagName !== 'TEXTAREA') return;
+  if (lastTa && lastTa !== e.target && lastTa.isConnected) closeSerifuOnLeave(indexOf(lastTa));
+  lastTa = e.target;
   cur = indexOf(e.target);
   updateGhosts();
   fitBlock(cur);
@@ -743,22 +747,39 @@ function nextType(type) {
   return type ? 'togaki' : null;
 }
 
-// 「」」で閉じていないセリフ
+// 「「」のあとが「」」で閉じていないセリフ（「「」が無ければ閉じていないとはしない）
 function openSerifu(b) {
-  return b?.type === 'serifu' && b.text.trim() && !/」[\s　]*$/.test(b.text);
+  return b?.type === 'serifu' && b.text.lastIndexOf('「') > b.text.lastIndexOf('」');
 }
 
-// セリフの途中で改行したら、閉じていない「」」を補う
+// セリフの途中で改行したり別の段落へ移ったりしたら、閉じていない「」」を補う
 function closeSerifu(i) {
   const b = doc.blocks[i];
-  if (!openSerifu(b)) return;
+  if (!openSerifu(b)) return false;
   b.text = b.text.replace(/[\s　]+$/, '') + '」';
   blockTa(i).value = b.text;
+  return true;
 }
 
-// セリフ末尾の「」」の手前で改行したら、送られる「」」は捨てる（closeSerifu で付け直すので2つにならない）
+function closeSerifuOnLeave(i) {
+  if (closeSerifu(i)) blockChanged(i);
+}
+
+// セリフの途中で改行したら、送られる文の末尾の「」」は捨てる（前の段落に closeSerifu で付け直すので2つにならない）
 function dropTrailingClose(b, after) {
-  return openSerifu(b) && /^」[\s　]*$/.test(after) ? '' : after;
+  return openSerifu(b) && !after.includes('「') ? after.replace(/」[\s　]*$/, '') : after;
+}
+
+// 段落iをカーソルの位置で分けたあと（段落iには前半が入っている）、後半を次の段落にする
+function splitBlock(i, after) {
+  const b = doc.blocks[i];
+  after = dropTrailingClose(b, after);
+  closeSerifu(i);
+  blockChanged(i);
+  const type = nextType(b.type);
+  insertBlocks(i, [{ type, text: after.replace(/^[\s　]+/, '') }]);
+  if (type) blockEl(i + 1).dataset.auto = '1';
+  focusBlock(i + 1, 0);
 }
 
 // 以前のセリフの続き（行頭が空白）は、空白を消したら種類を選ぶ前に戻す
@@ -772,16 +793,10 @@ blocksEl.addEventListener('beforeinput', e => {
   const b = doc.blocks[i];
   const ta = e.target;
   if (!b.type && !b.text.trim()) return;
-  let after = b.text.slice(ta.selectionEnd);
+  const after = b.text.slice(ta.selectionEnd);
   b.text = b.text.slice(0, ta.selectionStart);
   ta.value = b.text;
-  after = dropTrailingClose(b, after);
-  closeSerifu(i);
-  blockChanged(i);
-  const type = nextType(b.type);
-  insertBlocks(i, [{ type, text: after.replace(/^[\s　]+/, '') }]);
-  if (type) blockEl(i + 1).dataset.auto = '1';
-  focusBlock(i + 1, 0);
+  splitBlock(i, after);
 });
 
 blocksEl.addEventListener('input', e => {
@@ -800,11 +815,14 @@ blocksEl.addEventListener('input', e => {
   detectType(i, e.isComposing);
   if (!rest.length) return blockChanged(i);
 
-  // 貼り付けなどで複数行が入ったら、行ごとにブロックへ分ける（種類は推定）
+  // 変換の確定などで改行が1つだけ入ったら、改行キーと同じに分ける
   const caretInRest = ta.value.length - ta.selectionEnd;
   ta.value = first;
+  if (rest.length === 1 && caretInRest === rest[0].length) return splitBlock(i, rest[0]);
+
+  // 貼り付けなどで複数行が入ったら、行ごとにブロックへ分ける（種類は推定）
   blockChanged(i);
-  const added = textToBlocks(dropTrailingClose(b, rest.join('\n')));
+  const added = textToBlocks(rest.join('\n'));
   if (!added.length) {
     // 改行だけが入ったとき（改行キーと同じ扱い）
     closeSerifu(i);
