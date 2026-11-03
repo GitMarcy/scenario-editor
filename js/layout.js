@@ -68,7 +68,7 @@ function lineRubies(rubies, start, end) {
 }
 
 // 各行に、元のブロック番号（block）とブロック内の何行目か（row）を付ける。
-// 柱の前は1行空ける。ただし柱が見開き（A4の紙）の1行目に来るときは空けない
+// 柱の前は1行空ける。ただし柱が見開き（B5の紙）の1行目に来るときは空けない
 function layoutBody(blocks) {
   const lines = [];
   for (const p of bodyParas(blocks)) {
@@ -96,7 +96,7 @@ function chunk(arr, n) {
   return out;
 }
 
-// 作品全体をA4横の紙（sheet）の配列にする。
+// 作品全体をB5横の紙（sheet）の配列にする。
 // grid の sheet は halves[0]=右半分, halves[1]=左半分
 function buildSheets(doc) {
   const sheets = [{ kind: 'cover', ...doc.cover }];

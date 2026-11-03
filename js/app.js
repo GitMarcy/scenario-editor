@@ -437,7 +437,7 @@ function refreshLayout(all = false, changed = -1) {
         return `<div style="padding-left:${l.indent}em">${rubyHtml(l.chars, l.rubies, rubyTag, charHtml)}</div>`;
       }).join('');
     }
-    // 半ページ（10行）ごとの区切り。偶数ノンブルの次からA4の次の紙
+    // 半ページ（10行）ごとの区切り。偶数ノンブルの次からB5の次の紙
     const marks = gs.filter(g => g % LINES_PER_HALF === 0).map(g => {
       const n = g / LINES_PER_HALF + 1;
       return `<div class="pmark${n % 2 ? ' sheet' : ''}" style="top:calc(${lines[g].row} * var(--lh))"><span>P${n}</span></div>`;
@@ -450,7 +450,7 @@ function refreshLayout(all = false, changed = -1) {
 
   const n = lines.length;
   const halves = Math.max(1, Math.ceil(n / LINES_PER_HALF));
-  $('#body-stats').textContent = `本文 ${n}行 ／ ノンブル ${halves}（A4 ${Math.ceil(halves / 2)}枚・20×20換算 ${(n / 20).toFixed(1)}枚）`;
+  $('#body-stats').textContent = `本文 ${n}行 ／ ノンブル ${halves}（B5 ${Math.ceil(halves / 2)}枚・20×20換算 ${(n / 20).toFixed(1)}枚）`;
   updateCaret();
 }
 
@@ -1667,14 +1667,14 @@ $('#export-dialog').addEventListener('click', async e => {
   if (action === 'close') return $('#export-dialog').close();
   await flush();
 
-  if (action === 'pdf') {
+  if (action === 'pdf' || action === 'docx') {
     $('#busy').hidden = false;
     try {
-      const file = await buildPdfFile(doc);
+      const file = action === 'pdf' ? await buildPdfFile(doc) : buildDocxFile(doc);
       $('#export-dialog').close();
       showSavePrompt(file);
     } catch (err) {
-      toast('PDFを作れませんでした：' + err.message, 4000);
+      toast(`${action === 'pdf' ? 'PDF' : 'Wordファイル'}を作れませんでした：` + err.message, 4000);
     } finally {
       $('#busy').hidden = true;
     }
@@ -1697,9 +1697,10 @@ $('#export-dialog').addEventListener('click', async e => {
   }
 });
 
-// PDFができたら、もう一度タップしてもらって共有シートを開く
+// PDF・Wordファイルができたら、もう一度タップしてもらって共有シートを開く
 function showSavePrompt(file) {
-  toastAction(`PDFができました（${Math.round(file.size / 1024)}KB）`, '保存・共有', () => saveFile(file), 0);
+  const kind = file.name.endsWith('.pdf') ? 'PDF' : 'Wordファイル';
+  toastAction(`${kind}ができました（${Math.round(file.size / 1024)}KB）`, '保存・共有', () => saveFile(file), 0);
 }
 
 // ボタン付きの通知。ms が 0 なら閉じるまで出したまま

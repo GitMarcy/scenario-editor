@@ -1,8 +1,11 @@
 // 原稿用紙のDOM描画。寸法はすべてmm（sample.pdf から採寸）
+// 採寸はA4横のまま持ち、紙に出すときに SCALE 倍してB5横にする
 
+
+const SCALE = 257 / 297; // A4横 → B5横（257×182mm）。縦横比はほぼ同じなので見た目は変わらない
 
 const G = {
-  sheetW: 297, sheetH: 210,   // A4横
+  sheetW: 297, sheetH: 210,   // A4横（採寸の基準）
   pitchX: 11.4,               // 行の間隔
   pitchY: 7.1,                // 字の間隔
   font: 4.6,                  // 本文の文字サイズ
@@ -20,7 +23,7 @@ G.nombreY = G.halfPad + G.pitchY * (COLS + 2) + 1;
 
 const MM = 96 / 25.4; // CSS px / mm
 
-const mm = v => `${v}mm`;
+const mm = v => `${v * SCALE}mm`;
 
 function el(tag, cls, style) {
   const e = document.createElement(tag);

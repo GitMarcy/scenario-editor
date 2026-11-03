@@ -356,7 +356,7 @@ a.btn { display: inline-block; text-decoration: none; }
 .blk:focus-within .render { visibility: hidden; }
 .blk.t-none:focus-within .cells { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
 
-/* 半ページ（10行）ごとの区切り。実線はA4の紙の変わり目 */
+/* 半ページ（10行）ごとの区切り。実線はB5の紙の変わり目 */
 .marks { position: absolute; inset: 0; pointer-events: none; }
 .pmark { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--accent); }
 .pmark.sheet { border-top-style: solid; }
@@ -422,28 +422,29 @@ a.btn { display: inline-block; text-decoration: none; }
 }
 
 /* ---------- 原稿用紙（mm単位。画面・印刷共通） ---------- */
-.sheet, .half { position: relative; background: #fff; color: #111; font-family: var(--paper-font); }
+/* --u＝採寸（A4横）の1mm。B5横に縮めて出す（render.js の SCALE と同じ） */
+.sheet, .half { --u: calc(257mm / 297); position: relative; background: #fff; color: #111; font-family: var(--paper-font); }
 .cell {
-  position: absolute; width: 11.4mm; height: 7.1mm;
+  position: absolute; width: calc(11.4 * var(--u)); height: calc(7.1 * var(--u));
   writing-mode: vertical-rl; text-orientation: mixed;
-  line-height: 11.4mm; font-size: 4.6mm; text-align: center;
+  line-height: calc(11.4 * var(--u)); font-size: calc(4.6 * var(--u)); text-align: center;
 }
 .ruby {
-  position: absolute; width: 2.3mm; height: 2.3mm;
+  position: absolute; width: calc(2.3 * var(--u)); height: calc(2.3 * var(--u));
   writing-mode: vertical-rl; text-orientation: mixed;
-  line-height: 2.3mm; font-size: 2.3mm; white-space: nowrap;
+  line-height: calc(2.3 * var(--u)); font-size: calc(2.3 * var(--u)); white-space: nowrap;
 }
 .nombre {
   position: absolute; left: 0; width: 100%;
-  font-size: 3.6mm; line-height: 3.6mm; text-align: center;
+  font-size: calc(3.6 * var(--u)); line-height: calc(3.6 * var(--u)); text-align: center;
 }
 .grid {
   position: absolute; left: 0;
-  border: 0.25mm solid var(--grid-line);
+  border: calc(0.25 * var(--u)) solid var(--grid-line);
   background-image:
-    linear-gradient(to right, var(--grid-line) 0.2mm, transparent 0.2mm),
-    linear-gradient(to bottom, var(--grid-line) 0.2mm, transparent 0.2mm);
-  background-position: -0.25mm -0.25mm;
+    linear-gradient(to right, var(--grid-line) calc(0.2 * var(--u)), transparent calc(0.2 * var(--u))),
+    linear-gradient(to bottom, var(--grid-line) calc(0.2 * var(--u)), transparent calc(0.2 * var(--u)));
+  background-position: calc(-0.25 * var(--u)) calc(-0.25 * var(--u));
 }
 
 /* ---------- ダイアログ・通知 ---------- */
@@ -531,11 +532,11 @@ ul.sheet-note li.important { list-style: none; margin: 8px 0 8px -1.3em; padding
 
 /* ---------- 印刷 ---------- */
 #print-root { display: none; }
-@page { size: A4 landscape; margin: 0; }
+@page { size: B5 landscape; margin: 0; }
 @media print {
   body { background: #fff; }
   body > *:not(#print-root) { display: none !important; }
   #print-root { display: block; }
-  #print-root .sheet { height: 209mm; overflow: hidden; break-after: page; page-break-after: always; }
+  #print-root .sheet { height: 181mm; overflow: hidden; break-after: page; page-break-after: always; }
   #print-root .sheet:last-child { break-after: auto; page-break-after: auto; }
 }
