@@ -26,11 +26,10 @@ function toFull(s) {
     .replace(/ /g, '　');
 }
 
-// 1段落を行に折り返す。各行は { indent, chars, rubies }。
+// 1段落を行に折り返す。各行は { indent, chars, rubies }。chars は1マスずつ（縦中横は2字以上で1マス）。
 // rubies は { at（行の何文字目から）, len（親文字の字数）, ruby }
 function wrap(text, first, rest, width = COLS) {
-  const { text: plain, rubies } = parseRuby(text);
-  const chars = Array.from(plain);
+  const { chars, rubies } = parseRuby(text);
   if (!chars.length) return [{ indent: first, chars: [], rubies: [] }];
   const lines = [];
   let i = 0;

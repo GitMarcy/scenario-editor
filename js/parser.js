@@ -7,32 +7,70 @@ const SERIFU_RE = /^((?:[｜|][^｜|《》「」\s　]{1,10}《[^《》]*》|[^�
 // ルビ：｜親文字《ふりがな》。｜を省くと、《の前に続く漢字が親文字になる
 const RUBY_RE = /[｜|]([^｜|《》\n]+?)《([^《》\n]*)》|([々〆ヶ\p{Script=Han}]+)《([^《》\n]*)》/gu;
 
-// ルビの記号を除いた文字と、ルビの位置（at＝何文字目から、len＝親文字の字数）に分ける
-function parseRuby(s) {
-  let text = '', n = 0, last = 0;
-  const rubies = [];
-  for (const m of s.matchAll(RUBY_RE)) {
-    const before = s.slice(last, m.index);
-    const base = m[1] ?? m[3], ruby = m[2] ?? m[4];
-    const len = Array.from(base).length;
-    n += Array.from(before).length;
-    if (ruby) rubies.push({ at: n, len, ruby });
-    text += before + base;
-    n += len;
-    last = m.index + m[0].length;
-  }
-  return { text: text + s.slice(last), rubies };
+// 縦中横：^12^。半角にできる英数記号（^ を除く）2〜4字を半角にして1マスに横に並べる（toFull のあとの ＾１２＾ も同じ）。
+// 「(^_^)と」などが縦中横にならないよう、かなや漢字は含めない
+const TCY_RE = /[\^＾]([!-\]_-~！-］＿-～]{2,4})[\^＾]/g;
+
+function toHalf(s) {
+  return s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
 }
 
-// ルビの記号とふりがなを除いた1字ずつ。at＝元の文字列での位置、m＝ルビの親文字ならそのルビ（RUBY_RE の一致）
+// 1字ずつ。結合用の濁点・半濁点（U+3099・U+309A）は前の字と1マスにする（「あ゙」など）
+const CHAR_RE = /[^][゙゚]?/gu;
+const MARK_RE = /[゙゚]$/;
+
+function chars1(s) {
+  return s.match(CHAR_RE) || [];
+}
+
+// 縦中横のマスは2字以上をまとめた1要素になる（濁点を重ねた字は除く）
+function isTcy(ch) {
+  return Array.from(ch).length > 1 && !MARK_RE.test(ch);
+}
+
+// 1マスずつに分ける。縦中横は記号を除いて1マスにまとめる
+function cells(s) {
+  const out = [];
+  let last = 0;
+  for (const m of s.matchAll(TCY_RE)) {
+    out.push(...chars1(s.slice(last, m.index)), toHalf(m[1]));
+    last = m.index + m[0].length;
+  }
+  return [...out, ...chars1(s.slice(last))];
+}
+
+// ルビ・縦中横の記号を除いた文字（text）とマス（chars）、ルビの位置（at＝何マス目から、len＝親文字のマス数）に分ける
+function parseRuby(s) {
+  const chars = [], rubies = [];
+  let last = 0;
+  for (const m of s.matchAll(RUBY_RE)) {
+    chars.push(...cells(s.slice(last, m.index)));
+    const base = cells(m[1] ?? m[3]), ruby = m[2] ?? m[4];
+    if (ruby) rubies.push({ at: chars.length, len: base.length, ruby });
+    chars.push(...base);
+    last = m.index + m[0].length;
+  }
+  chars.push(...cells(s.slice(last)));
+  return { text: chars.join(''), chars, rubies };
+}
+
+// ルビの記号とふりがなを除いた1マスずつ。at〜end＝元の文字列での範囲、m＝ルビの親文字ならそのルビ（RUBY_RE の一致）、
+// tcy＝縦中横（ch は記号を除いた中身、at〜end は記号を含む）
 function rawChars(s) {
   const out = [];
-  const push = (from, to, m) => {
-    for (let k = from; k < to;) {
-      const ch = String.fromCodePoint(s.codePointAt(k));
-      out.push({ ch, at: k, m });
-      k += ch.length;
+  const one = (from, to, m) => {
+    for (const c of s.slice(from, to).matchAll(CHAR_RE)) {
+      out.push({ ch: c[0], at: from + c.index, end: from + c.index + c[0].length, m });
     }
+  };
+  const push = (from, to, m) => {
+    let k = from;
+    for (const t of s.slice(from, to).matchAll(TCY_RE)) {
+      one(k, from + t.index, m);
+      k = from + t.index + t[0].length;
+      out.push({ ch: toHalf(t[1]), at: from + t.index, end: k, m, tcy: true });
+    }
+    one(k, to, m);
   };
   let last = 0;
   for (const m of s.matchAll(RUBY_RE)) {

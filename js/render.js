@@ -44,7 +44,7 @@ function renderHalf(half, { grid = false } = {}) {
     const x = G.halfW - (c + 1) * G.pitchX;
     line.chars.forEach((ch, k) => {
       if (ch === '　') return;
-      const cell = el('div', 'cell', {
+      const cell = el('div', isTcy(ch) ? 'cell tcy' : 'cell', {
         left: mm(x), top: mm(G.halfPad + (line.indent + k) * G.pitchY),
       });
       cell.textContent = ch;

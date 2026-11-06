@@ -431,8 +431,10 @@ function refreshLayout(all = false, changed = -1) {
         const l = lines[g], p0 = p;
         p += l.chars.length;
         const charHtml = (ch, k) => {
+          const n = Array.from(ch).length;
+          const s = isTcy(ch) ? `<span class="tcy"><span style="font-size:${Math.min(1, 2 / n)}em">${escapeHtml(ch)}</span></span>` : escapeHtml(ch);
           const cls = [rubyMode && 'ch', warn.has(p0 + k) && 'kuten-warn'].filter(Boolean).join(' ');
-          return cls ? `<span class="${cls}"${rubyMode ? ` data-p="${p0 + k}"` : ''}>${escapeHtml(ch)}</span>` : escapeHtml(ch);
+          return cls ? `<span class="${cls}"${rubyMode ? ` data-p="${p0 + k}"` : ''}>${s}</span>` : s;
         };
         return `<div style="padding-left:${l.indent}em">${rubyHtml(l.chars, l.rubies, rubyTag, charHtml)}</div>`;
       }).join('');
@@ -495,7 +497,7 @@ function updateCaret() {
   if (g < 0) g = lines.length;
   const gs = rows[cur] || [];
   if (ta && gs.length) {
-    const c = parseRuby(ta.value.slice(0, ta.selectionStart)).text.length; // ルビの記号は数えない
+    const c = parseRuby(ta.value.slice(0, ta.selectionStart)).chars.length; // ルビ・縦中横の記号は数えない
     let acc = 0;
     g = gs[gs.length - 1];
     for (const k of gs) {
@@ -1155,15 +1157,18 @@ function startBlock(type, text, caret = text.length) {
 // ---------- ルビ ----------
 // ［ルビ］でルビ入力モードにし、マス目の文字をタップして選ぶ（iPhoneでは文字の選択がボタンを押すと消えるため）。
 // 1つ目のタップで1字、2つ目のタップでその間をまとめて選ぶ。ルビの付いた文字は親文字ぜんぶをひとまとまりで選ぶ。
-// ［ルビ入力］で、選んだ文字を ｜親文字《ふりがな》 にする（ルビの付いた文字なら直す・外す）
+// ［ルビ入力］で、選んだ文字を ｜親文字《ふりがな》 にする（ルビの付いた文字なら直す・外す）。
+// ［縦中横］も同じように文字を選び、選んだ文字を ^12^ にする（縦中横の文字なら外す）
 
 let rubyMode = false;
+let tcyMode = false;   // ［縦中横］から入った文字選択
 let rubySel = null;    // { i: ブロック, a〜b: 段落の何文字目から何文字目, open: 2つ目のタップを待っている }
 let rubyTarget = null; // ダイアログで書き換える元の文字列の範囲
 
-function setRubyMode(on) {
+function setRubyMode(on, tcy = false) {
   if (rubyMode === on) return;
   rubyMode = on;
+  tcyMode = on && tcy;
   rubySel = null;
   blocksEl.classList.toggle('ruby-mode', on);
   $('#toolbar').classList.toggle('ruby-mode', on);
@@ -1180,7 +1185,7 @@ function rubyMap(i) {
   const raw = rawChars(doc.blocks[i].text);
   let t = 0;
   return chars.map(ch => {
-    while (t < raw.length && toFull(raw[t].ch) !== ch) t++;
+    while (t < raw.length && toFull(raw[t].ch) !== toFull(ch)) t++;
     return raw[t++];
   });
 }
@@ -1212,28 +1217,68 @@ function updateRubySel() {
       el.classList.toggle('rsel', el.dataset.p >= s.a && el.dataset.p <= s.b);
     }
   }
-  $('#ruby-count').textContent = s ? `「${rubyMap(s.i).slice(s.a, s.b + 1).map(t => t?.ch ?? '').join('')}」` : '文字をタップして選択';
-  $('#btn-ruby-input').disabled = !s;
+  const sel = s ? rubyMap(s.i).slice(s.a, s.b + 1) : [];
+  $('#ruby-count').textContent = s ? `「${sel.map(t => t?.ch ?? '').join('')}」` : '文字をタップして選択';
+  const input = $('#btn-ruby-input');
+  const on = sel.length === 1 && (sel[0]?.tcy || MARK_RE.test(sel[0]?.ch));
+  input.textContent = !tcyMode ? 'ルビ入力' : on ? '縦中横を外す' : '縦中横にする';
+  input.disabled = !s;
   fitText($('#ruby-count'));
 }
 
+// ブロックの元の文字列の start〜end を text に書き換える
+function replaceRaw(i, start, end, text) {
+  const b = doc.blocks[i];
+  b.text = b.text.slice(0, start) + text + b.text.slice(end);
+  blockTa(i).value = b.text;
+  markHistoryStep();
+  rubySel = null;
+  blockChanged(i);
+  updateRubySel();
+}
+
+// 濁点・半濁点（゛゜ﾞﾟ）と、1マスに重ねる結合用の濁点・半濁点
+const MARKS = { '゛': '゙', 'ﾞ': '゙', '゙': '゙', '゜': '゚', 'ﾟ': '゚', '゚': '゚' };
+
+// 選んだ文字を縦中横にする（縦中横の文字なら外す）。中身は半角にし、英数記号の2〜4字に限る（TCY_RE と同じ）。
+// 「あ゛」のように字と濁点・半濁点を選んだときは、濁点を字に重ねて1マスにする
+function toggleTcy(s) {
+  const sel = rubyMap(s.i).slice(s.a, s.b + 1);
+  if (sel.some(t => !t || t.m)) return toast('ルビの付いた文字は縦中横にできません', 3000);
+  if (sel.length === 1 && sel[0].tcy) return replaceRaw(s.i, sel[0].at, sel[0].end, sel[0].ch);
+  if (sel.length === 1 && MARK_RE.test(sel[0].ch)) {
+    const [base, mark] = Array.from(sel[0].ch);
+    return replaceRaw(s.i, sel[0].at, sel[0].end, base + (mark === '゙' ? '゛' : '゜'));
+  }
+  if (sel.some(t => t.tcy)) return toast('縦中横の文字と、ほかの文字は一緒に選べません', 3000);
+  const start = sel[0].at, end = sel.at(-1).end;
+  if (sel.length === 2 && MARKS[sel[1].ch] && !MARK_RE.test(sel[0].ch) && !MARKS[sel[0].ch]) {
+    return replaceRaw(s.i, start, end, sel[0].ch + MARKS[sel[1].ch]);
+  }
+  const inner = toHalf(doc.blocks[s.i].text.slice(start, end));
+  if (!/^[!-\]_-~]{2,4}$/.test(inner)) return toast('縦中横にできるのは、数字・英字・記号の2〜4字か、「あ゛」のような字と濁点・半濁点です', 3000);
+  replaceRaw(s.i, start, end, `^${inner}^`);
+}
+
 $('#btn-ruby').onclick = () => setRubyMode(true);
+$('#btn-tcy').onclick = () => setRubyMode(true, true);
 $('#btn-ruby-done').onclick = () => setRubyMode(false);
 $('#btn-ruby-input').onclick = () => {
   const s = rubySel;
   if (!s) return;
+  if (tcyMode) return toggleTcy(s);
   const sel = rubyMap(s.i).slice(s.a, s.b + 1);
   const groups = new Set(sel.map(t => t?.m));
   const m = sel[0]?.m;
   if (groups.size === 1 && m) {
     rubyTarget = { i: s.i, start: m.index, end: m.index + m[0].length, base: m[1] ?? m[3], ruby: m[2] ?? m[4] };
   } else if (groups.size === 1 && m === null) {
-    const start = sel[0].at, end = sel.at(-1).at + sel.at(-1).ch.length;
+    const start = sel[0].at, end = sel.at(-1).end;
     rubyTarget = { i: s.i, start, end, base: doc.blocks[s.i].text.slice(start, end), ruby: '' };
   } else {
     return toast('ルビの付いた文字と、付いていない文字は一緒に選べません', 3000);
   }
-  $('#ruby-base').textContent = rubyTarget.base;
+  $('#ruby-base').textContent = parseRuby(rubyTarget.base).text;
   $('#ruby-input').value = rubyTarget.ruby;
   $('#ruby-remove').hidden = !m;
   $('#ruby-dialog').returnValue = '';
@@ -1246,13 +1291,7 @@ $('#ruby-dialog').addEventListener('close', () => {
   const act = $('#ruby-dialog').returnValue;
   if (!t || (act !== 'ok' && act !== 'remove')) return;
   const ruby = $('#ruby-input').value.replace(/[｜|《》\s　]/g, '');
-  const b = doc.blocks[t.i];
-  b.text = b.text.slice(0, t.start) + (act === 'ok' ? rubyMarkup(t.base, ruby) : t.base) + b.text.slice(t.end);
-  blockTa(t.i).value = b.text;
-  markHistoryStep();
-  rubySel = null;
-  blockChanged(t.i);
-  updateRubySel();
+  replaceRaw(t.i, t.start, t.end, act === 'ok' ? rubyMarkup(t.base, ruby) : t.base);
 });
 
 // ---------- 段落をまとめて削除 ----------

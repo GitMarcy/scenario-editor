@@ -15,7 +15,9 @@ function drawChar(ctx, ch, cx, cy, f) {
   if (ROTATE.has(ch)) ctx.rotate(Math.PI / 2);
   else if (PUNCT.has(ch)) ctx.translate(f * 0.6, -f * 0.6);
   else if (SMALL.has(ch)) ctx.translate(f * 0.1, -f * 0.1);
-  ctx.fillText(ch, 0, 0);
+  // 縦中横は1字分の幅に収まるよう縮めて横に並べる
+  if (isTcy(ch)) ctx.fillText(ch, 0, 0, f);
+  else ctx.fillText(ch, 0, 0);
   ctx.restore();
 }
 
@@ -154,14 +156,15 @@ function escapeHtml(s) {
 }
 
 // 原稿用紙どおり：20字で改行し、字下げは全角スペース。
-// ルビはテキストでは ｜親文字《ふりがな》、HTML（Wordに貼るとき）では <ruby> にする
+// ルビはテキストでは ｜親文字《ふりがな》、HTML（Wordに貼るとき）では <ruby> にする。縦中横はテキストでは ^12^
 function gridContent(doc) {
   const lines = layoutBody(doc.blocks);
   const plain = lines.map(l => '　'.repeat(l.indent) +
-    rubyHtml(l.chars, l.rubies, (base, _, r) => `｜${base}《${r.ruby}》`, ch => ch)).join('\n');
+    rubyHtml(l.chars, l.rubies, (base, _, r) => `｜${base}《${r.ruby}》`, ch => isTcy(ch) ? `^${ch}^` : ch)).join('\n');
+  const tcy = ch => isTcy(ch) ? `<span style="text-combine-upright:all">${escapeHtml(ch)}</span>` : escapeHtml(ch);
   const html = '<div style="font-family:\'游明朝\',\'Yu Mincho\',\'ヒラギノ明朝 ProN\',serif">' +
     lines.map(l => `<p style="margin:0">${'　'.repeat(l.indent)}${
-      rubyHtml(l.chars, l.rubies, (base, ruby) => `<ruby>${base}<rt style="font-size:6pt">${ruby}</rt></ruby>`) || '　'}</p>`).join('') + '</div>';
+      rubyHtml(l.chars, l.rubies, (base, ruby) => `<ruby>${base}<rt style="font-size:6pt">${ruby}</rt></ruby>`, tcy) || '　'}</p>`).join('') + '</div>';
   return { plain, html };
 }
 
@@ -173,13 +176,19 @@ const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/m
   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
-// 1行（layoutBody の行）を段落の中身にする。ルビは Word のルビ（親文字の半分の大きさ）
+// 1行（layoutBody の行）を段落の中身にする。ルビは Word のルビ（親文字の半分の大きさ）、
+// 縦中横は Word の縦中横（行内に収める）。縦中横の id は1つずつ別にする
+let docxTcyId = 0;
+
 function docxLine(l) {
   const ruby = (base, ruby) => '</w:t></w:r><w:r><w:ruby><w:rubyPr><w:rubyAlign w:val="distributeSpace"/>' +
     '<w:hps w:val="12"/><w:hpsRaise w:val="22"/><w:hpsBaseText w:val="24"/><w:lid w:val="ja-JP"/></w:rubyPr>' +
     `<w:rt><w:r><w:rPr><w:sz w:val="12"/></w:rPr><w:t>${ruby}</w:t></w:r></w:rt>` +
     `<w:rubyBase><w:r><w:t>${base}</w:t></w:r></w:rubyBase></w:ruby></w:r><w:r><w:t xml:space="preserve">`;
-  return `<w:r><w:t xml:space="preserve">${'　'.repeat(l.indent)}${rubyHtml(l.chars, l.rubies, ruby)}</w:t></w:r>`;
+  const tcy = ch => !isTcy(ch) ? escapeHtml(ch) :
+    `</w:t></w:r><w:r><w:rPr><w:eastAsianLayout w:id="${++docxTcyId}" w:vert="1" w:vertCompress="1"/></w:rPr>` +
+    `<w:t xml:space="preserve">${escapeHtml(ch)}</w:t></w:r><w:r><w:t xml:space="preserve">`;
+  return `<w:r><w:t xml:space="preserve">${'　'.repeat(l.indent)}${rubyHtml(l.chars, l.rubies, ruby, tcy)}</w:t></w:r>`;
 }
 
 function docxText(text, rPr = '') {
@@ -217,17 +226,17 @@ function docxScenarioBody(blocks) {
   const paras = [];
   for (const p of bodyParas(blocks)) {
     if (blank.has(p.block)) paras.push({});
-    let { text, rubies } = parseRuby(toFull(p.text));
+    let { chars, rubies } = parseRuby(toFull(p.text));
     // 柱の「○」はスタイルの箇条書きで付く
     if (p.type === 'hashira') {
-      text = text.slice(1);
+      chars = chars.slice(1);
       rubies = rubies.map(r => ({ ...r, at: r.at - 1 }));
     }
     const style = SC_STYLE[p.type];
     // セリフの続きは1行目も1字下げ（2行目からはスタイルで下がる）
     paras.push({
       pPr: style ? `<w:pStyle w:val="${style}"/>` : '',
-      body: docxLine({ indent: p.cont ? 1 : 0, chars: Array.from(text), rubies }),
+      body: docxLine({ indent: p.cont ? 1 : 0, chars, rubies }),
     });
   }
   return paras;

@@ -325,6 +325,8 @@ a.btn { display: inline-block; text-decoration: none; }
   display: flex; justify-content: space-around; align-items: flex-end;
 }
 .render .rt > span { font-size: .42em; line-height: 1; } /* RUBY_SIZE（app.js）と合わせる */
+/* 縦中横は1マスに横に並べる。3字以上は字を小さくする（app.js の charHtml） */
+.render .tcy { display: inline-block; width: 1em; text-align: center; white-space: nowrap; letter-spacing: 0; }
 /* セリフの「。」」の「。」（app.js の kutenWarnings） */
 .render .kuten-warn {
   display: inline-block; width: 1em; height: var(--lh); vertical-align: top;
@@ -429,6 +431,7 @@ a.btn { display: inline-block; text-decoration: none; }
   writing-mode: vertical-rl; text-orientation: mixed;
   line-height: calc(11.4 * var(--u)); font-size: calc(4.6 * var(--u)); text-align: center;
 }
+.cell.tcy { text-combine-upright: all; -webkit-text-combine: horizontal; }
 .ruby {
   position: absolute; width: calc(2.3 * var(--u)); height: calc(2.3 * var(--u));
   writing-mode: vertical-rl; text-orientation: mixed;
