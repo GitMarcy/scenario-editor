@@ -255,6 +255,12 @@ a.btn { display: inline-block; text-decoration: none; }
   font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .toolbar .select-btn { padding: 6px 9px; font-family: var(--ui-font); font-size: 14px; color: var(--accent); }
+/* ［縦中横］［ルビ］［行選択］は間を空けずに並べ、境目は1本の線にする（角の丸めは .types と同じく両端だけ） */
+.select-btns { display: inline-flex; flex: none; }
+.toolbar .select-btns .select-btn { border-radius: 0; }
+.toolbar .select-btns .select-btn:first-child { border-radius: 8px 0 0 8px; }
+.toolbar .select-btns .select-btn:last-child { border-radius: 0 8px 8px 0; }
+.toolbar .select-btns .select-btn + .select-btn { border-left: 0; }
 
 /* まとめて削除 */
 .toolbar .select-bar, .toolbar .ruby-bar { display: none; }
