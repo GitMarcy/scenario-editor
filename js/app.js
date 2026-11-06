@@ -1667,10 +1667,10 @@ $('#export-dialog').addEventListener('click', async e => {
   if (action === 'close') return $('#export-dialog').close();
   await flush();
 
-  if (action === 'pdf' || action === 'docx') {
+  if (action === 'pdf' || action === 'docx' || action === 'docx-sc') {
     $('#busy').hidden = false;
     try {
-      const file = action === 'pdf' ? await buildPdfFile(doc) : buildDocxFile(doc);
+      const file = action === 'pdf' ? await buildPdfFile(doc) : buildDocxFile(doc, action === 'docx-sc');
       $('#export-dialog').close();
       showSavePrompt(file);
     } catch (err) {

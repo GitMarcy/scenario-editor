@@ -208,7 +208,52 @@ function docxSect(charSpace, footer) {
     `<w:docGrid w:type="linesAndChars" w:linePitch="558" w:charSpace="${charSpace}"/></w:sectPr>`;
 }
 
-function docxDocument(doc) {
+// シナリオセンター式の本文：1段落を1つの段落にして流し込み（折り返しはWordに任せる）、
+// 見本（sample.docx）のスタイル「柱」「ト書き」「セリフ」を当てる。柱の前の空行は原稿用紙と同じ所に入れる
+const SC_STYLE = { hashira: 'Hashira', togaki: 'Togaki', serifu: 'Serifu' };
+
+function docxScenarioBody(blocks) {
+  const blank = new Set(layoutBody(blocks).filter(l => l.type === 'blank').map(l => l.block));
+  const paras = [];
+  for (const p of bodyParas(blocks)) {
+    if (blank.has(p.block)) paras.push({});
+    let { text, rubies } = parseRuby(toFull(p.text));
+    // 柱の「○」はスタイルの箇条書きで付く
+    if (p.type === 'hashira') {
+      text = text.slice(1);
+      rubies = rubies.map(r => ({ ...r, at: r.at - 1 }));
+    }
+    const style = SC_STYLE[p.type];
+    // セリフの続きは1行目も1字下げ（2行目からはスタイルで下がる）
+    paras.push({
+      pPr: style ? `<w:pStyle w:val="${style}"/>` : '',
+      body: docxLine({ indent: p.cont ? 1 : 0, chars: Array.from(text), rubies }),
+    });
+  }
+  return paras;
+}
+
+// 見本のスタイルを写したもの（「ト書き」は「ト書１」をもとにしている）。
+// ト書きだけは見本と変えて、1行目だけでなく全部の行を3字下げる
+const SC_STYLES =
+  '<w:style w:type="paragraph" w:customStyle="1" w:styleId="Serifu"><w:name w:val="セリフ"/><w:basedOn w:val="Normal"/><w:qFormat/>' +
+  '<w:pPr><w:widowControl/><w:ind w:left="100" w:hangingChars="100" w:hanging="100"/><w:jc w:val="left"/></w:pPr><w:rPr><w:szCs w:val="24"/></w:rPr></w:style>' +
+  '<w:style w:type="paragraph" w:customStyle="1" w:styleId="Togaki1"><w:name w:val="ト書１"/><w:basedOn w:val="Serifu"/><w:next w:val="Serifu"/>' +
+  '<w:pPr><w:ind w:left="0" w:firstLineChars="300" w:firstLine="300"/></w:pPr></w:style>' +
+  '<w:style w:type="paragraph" w:customStyle="1" w:styleId="Togaki"><w:name w:val="ト書き"/><w:basedOn w:val="Togaki1"/><w:qFormat/>' +
+  '<w:pPr><w:ind w:leftChars="300" w:left="720" w:firstLineChars="0" w:firstLine="0"/></w:pPr></w:style>' +
+  '<w:style w:type="paragraph" w:customStyle="1" w:styleId="Hashira"><w:name w:val="柱"/><w:qFormat/>' +
+  '<w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:rPr><w:kern w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>';
+
+// 柱の「○」（見本の箇条書きと同じ）
+const SC_NUMBERING = `${XML_HEAD}<w:numbering ${W_NS}><w:abstractNum w:abstractNumId="0">` +
+  '<w:multiLevelType w:val="hybridMultilevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/>' +
+  '<w:pStyle w:val="Hashira"/><w:suff w:val="nothing"/><w:lvlText w:val="○"/><w:lvlJc w:val="left"/>' +
+  '<w:pPr><w:ind w:left="420" w:hanging="420"/></w:pPr>' +
+  '<w:rPr><w:rFonts w:ascii="ＭＳ 明朝" w:eastAsia="ＭＳ 明朝" w:hAnsi="ＭＳ 明朝" w:cs="ＭＳ 明朝" w:hint="eastAsia"/><w:sz w:val="24"/></w:rPr>' +
+  '</w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>';
+
+function docxDocument(doc, sc) {
   const lines = text => toFull(text || '').split('\n');
   const blanks = (n, pPr = '') => Array.from({ length: n }, () => ({ pPr }));
 
@@ -228,7 +273,7 @@ function docxDocument(doc) {
   const chars = layoutCharacters(doc.characters).map(l => ({ body: docxLine(l) }));
   if (chars.length) chars[0].pPr = '<w:pageBreakBefore/>';
 
-  const body = layoutBody(doc.blocks).map(l => ({ body: docxLine(l) }));
+  const body = sc ? docxScenarioBody(doc.blocks) : layoutBody(doc.blocks).map(l => ({ body: docxLine(l) }));
   if (!body.length) body.push({});
 
   const back = [
@@ -255,7 +300,8 @@ function docxNombreFooter() {
     '</w:p></w:ftr>';
 }
 
-function buildDocxFile(doc) {
+// sc：シナリオセンター式（本文を流し込み、柱・ト書き・セリフのスタイルを当てる）
+function buildDocxFile(doc, sc = false) {
   const T = 'application/vnd.openxmlformats-officedocument.wordprocessingml';
   const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   const rel = (id, type, target) => `<Relationship Id="${id}" Type="${R}/${type}" Target="${target}"/>`;
@@ -265,18 +311,21 @@ function buildDocxFile(doc) {
       '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
       '<Default Extension="xml" ContentType="application/xml"/>' +
       part('document.xml', 'document.main') + part('styles.xml', 'styles') + part('settings.xml', 'settings') +
-      part('footer1.xml', 'footer') + part('footer2.xml', 'footer') + '</Types>'],
+      part('footer1.xml', 'footer') + part('footer2.xml', 'footer') +
+      (sc ? part('numbering.xml', 'numbering') : '') + '</Types>'],
     ['_rels/.rels', `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       rel('rId1', 'officeDocument', 'word/document.xml') + '</Relationships>'],
     ['word/_rels/document.xml.rels', `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       rel('rId1', 'styles', 'styles.xml') + rel('rId2', 'settings', 'settings.xml') +
-      rel('rId3', 'footer', 'footer1.xml') + rel('rId4', 'footer', 'footer2.xml') + '</Relationships>'],
-    ['word/document.xml', docxDocument(doc)],
+      rel('rId3', 'footer', 'footer1.xml') + rel('rId4', 'footer', 'footer2.xml') +
+      (sc ? rel('rId5', 'numbering', 'numbering.xml') : '') + '</Relationships>'],
+    ['word/document.xml', docxDocument(doc, sc)],
     ['word/styles.xml', `${XML_HEAD}<w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr>` +
       '<w:rFonts w:ascii="ＭＳ 明朝" w:eastAsia="ＭＳ 明朝" w:hAnsi="ＭＳ 明朝"/><w:kern w:val="2"/>' +
       '<w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="en-US" w:eastAsia="ja-JP" w:bidi="ar-SA"/>' +
       '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:widowControl w:val="0"/><w:jc w:val="both"/></w:pPr></w:pPrDefault>' +
-      '</w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>'],
+      '</w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
+      (sc ? SC_STYLES : '') + '</w:styles>'],
     ['word/settings.xml', `${XML_HEAD}<w:settings ${W_NS}><w:defaultTabStop w:val="996"/>` +
       '<w:characterSpacingControl w:val="compressPunctuation"/><w:compat>' +
       '<w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>' +
@@ -284,6 +333,7 @@ function buildDocxFile(doc) {
     ['word/footer1.xml', docxNombreFooter()],
     // 裏表紙のフッター。付けないと本文のノンブルを引き継いでしまう
     ['word/footer2.xml', `${XML_HEAD}<w:ftr ${W_NS}><w:p/></w:ftr>`],
+    ...(sc ? [['word/numbering.xml', SC_NUMBERING]] : []),
   ]);
   return new File([zip], `${fileBase(doc)}.docx`, { type: `${T}.document` });
 }
