@@ -44,7 +44,8 @@ function renderHalf(half, { grid = false } = {}) {
     const x = G.halfW - (c + 1) * G.pitchX;
     line.chars.forEach((ch, k) => {
       if (ch === '　') return;
-      const cell = el('div', isTcy(ch) ? 'cell tcy' : 'cell', {
+      // 「あ゙」のように濁点を重ねた字も、縦中横と同じく横書きで1マスに収める（縦書きのままだと濁点がずれる）
+      const cell = el('div', isTcy(ch) || MARK_RE.test(ch) ? 'cell tcy' : 'cell', {
         left: mm(x), top: mm(G.halfPad + (line.indent + k) * G.pitchY),
       });
       cell.textContent = ch;

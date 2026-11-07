@@ -335,6 +335,9 @@ a.btn { display: inline-block; text-decoration: none; }
 .render .rt > span { font-size: .42em; line-height: 1; } /* RUBY_SIZE（app.js）と合わせる */
 /* 縦中横は1マスに横に並べる。3字以上は字を小さくする（app.js の charHtml） */
 .render .tcy { display: inline-block; width: 1em; text-align: center; white-space: nowrap; letter-spacing: 0; }
+/* 「あ゙」のように濁点を重ねた字。結合用の濁点はマスの境目に出てしまうので、字の右上に濁点（゛゜）を重ねて1マスに収める */
+.render .mark { display: inline-block; width: 1em; position: relative; }
+.render .mark i { position: absolute; left: .65em; top: -.05em; font-style: normal; }
 /* セリフの「。」」の「。」（app.js の kutenWarnings） */
 .render .kuten-warn {
   display: inline-block; width: 1em; height: var(--lh); vertical-align: top;

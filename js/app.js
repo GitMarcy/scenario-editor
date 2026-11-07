@@ -432,7 +432,8 @@ function refreshLayout(all = false, changed = -1) {
         p += l.chars.length;
         const charHtml = (ch, k) => {
           const n = Array.from(ch).length;
-          const s = isTcy(ch) ? `<span class="tcy"><span style="font-size:${Math.min(1, 2 / n)}em">${escapeHtml(ch)}</span></span>` : escapeHtml(ch);
+          const s = isTcy(ch) ? `<span class="tcy"><span style="font-size:${Math.min(1, 2 / n)}em">${escapeHtml(ch)}</span></span>`
+            : MARK_RE.test(ch) ? `<span class="mark">${escapeHtml(Array.from(ch)[0])}<i>${ch.endsWith('゙') ? '゛' : '゜'}</i></span>` : escapeHtml(ch);
           const cls = [rubyMode && 'ch', warn.has(p0 + k) && 'kuten-warn'].filter(Boolean).join(' ');
           return cls ? `<span class="${cls}"${rubyMode ? ` data-p="${p0 + k}"` : ''}>${s}</span>` : s;
         };
