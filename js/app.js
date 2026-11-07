@@ -995,7 +995,7 @@ $('#toolbar').addEventListener('touchstart', e => {
 // 入力中の段落は textarea の文字がそのまま見えるので、ブラウザが折り返した見た目どおりに動かす。
 // 同じ書式の写しを作り、カーソルを置ける位置ごとに行（top）と横の位置（left）を測る
 const MIRROR_PROPS = ['boxSizing', 'width', 'paddingLeft', 'paddingRight', 'fontFamily', 'fontSize', 'fontWeight',
-  'fontVariantEastAsian', 'letterSpacing', 'lineHeight', 'textIndent', 'whiteSpace', 'lineBreak', 'wordBreak', 'overflowWrap'];
+  'fontVariantEastAsian', 'fontKerning', 'letterSpacing', 'lineHeight', 'textIndent', 'whiteSpace', 'lineBreak', 'wordBreak', 'overflowWrap'];
 
 function caretPositions(ta) {
   const cs = getComputedStyle(ta);

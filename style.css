@@ -301,6 +301,8 @@ a.btn { display: inline-block; text-decoration: none; }
   display: grid; grid-template-columns: 28px 20em 1.6em; align-items: start;
   font-family: var(--paper-font); line-height: var(--lh);
   font-size: min(20px, calc((100cqi - 30px) / 21.6));
+  /* ヒラギノのカナの字詰めが効くとマス目からずれ、行末のぶら下げも20字目に入って見えるので止める */
+  font-kerning: none;
 }
 .badge {
   height: var(--lh); border: 0; padding: 0; background: none; cursor: pointer;
@@ -342,7 +344,7 @@ a.btn { display: inline-block; text-decoration: none; }
   position: absolute; left: 0; top: 0; z-index: 1;
   width: 20.5em; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 0;
   font: inherit; line-height: inherit; letter-spacing: 0;
-  font-variant-east-asian: full-width;
+  font-variant-east-asian: full-width; font-kerning: none;
   white-space: pre-wrap; line-break: anywhere; word-break: break-all;
   resize: none; overflow: hidden; outline: none; background: transparent;
   color: transparent; caret-color: var(--text); -webkit-appearance: none; appearance: none;
