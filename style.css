@@ -541,11 +541,13 @@ ul.sheet-note li.important { list-style: none; margin: 8px 0 8px -1.3em; padding
 
 /* ---------- 印刷 ---------- */
 #print-root { display: none; }
-@page { size: B5 landscape; margin: 0; }
+/* CSSの「B5」はISO B5（250×176mm）なので、JIS B5横（257×182mm）を数値で指定する */
+@page { size: 257mm 182mm; margin: 0; }
 @media print {
   body { background: #fff; }
   body > *:not(#print-root) { display: none !important; }
   #print-root { display: block; }
-  #print-root .sheet { height: 181mm; overflow: hidden; break-after: page; page-break-after: always; }
+  /* render.js がインラインで高さ（約181.7mm）を付けるので !important で上書きし、端数のはみ出しを防ぐ */
+  #print-root .sheet { height: 181mm !important; overflow: hidden; break-after: page; page-break-after: always; }
   #print-root .sheet:last-child { break-after: auto; page-break-after: auto; }
 }
