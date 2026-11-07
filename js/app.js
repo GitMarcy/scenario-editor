@@ -1706,10 +1706,10 @@ $('#export-dialog').addEventListener('click', async e => {
   if (action === 'close') return $('#export-dialog').close();
   await flush();
 
-  if (action === 'pdf' || action === 'docx' || action === 'docx-sc') {
+  if (action === 'pdf' || action === 'docx-sc') {
     $('#busy').hidden = false;
     try {
-      const file = action === 'pdf' ? await buildPdfFile(doc) : buildDocxFile(doc, action === 'docx-sc');
+      const file = action === 'pdf' ? await buildPdfFile(doc) : buildDocxFile(doc);
       $('#export-dialog').close();
       showSavePrompt(file);
     } catch (err) {
@@ -1723,11 +1723,7 @@ $('#export-dialog').addEventListener('click', async e => {
   $('#export-dialog').close();
   try {
     if (action === 'print') printDoc(doc);
-    else if (action === 'copy-grid') {
-      const { plain, html } = gridContent(doc);
-      await copyToClipboard(plain, html);
-      toast('コピーしました（20字改行）');
-    } else if (action === 'copy-plain') {
+    else if (action === 'copy-plain') {
       await copyToClipboard(plainText(doc));
       toast('コピーしました（プレーンテキスト）');
     } else if (action === 'backup') await exportBackup(doc);

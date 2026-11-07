@@ -1,3 +1,3 @@
 // 更新のたびにここだけ書き換える。sw.js のキャッシュ名と一覧の下の表示に使う
-const APP_VERSION = 'v57';
-const APP_UPDATED = '2026.11.07 16:35';
+const APP_VERSION = 'v58';
+const APP_UPDATED = '2026.11.07 20:05';

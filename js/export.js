@@ -1,4 +1,4 @@
-// 保存・コピー：PDF（画像）、印刷、Word（.docx）、Word用・プレーンテキストのコピー、編集データ（.json）
+// 保存・コピー：PDF（画像）、印刷、シナリオセンターWord（.docx）、プレーンテキストのコピー、編集データ（.json）
 
 
 const FONT = '"Hiragino Mincho ProN", "Hiragino Mincho Pro", "Yu Mincho", "YuMincho", serif';
@@ -155,21 +155,9 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
-// 原稿用紙どおり：20字で改行し、字下げは全角スペース。
-// ルビはテキストでは ｜親文字《ふりがな》、HTML（Wordに貼るとき）では <ruby> にする。縦中横はテキストでは ^12^
-function gridContent(doc) {
-  const lines = layoutBody(doc.blocks);
-  const plain = lines.map(l => '　'.repeat(l.indent) +
-    rubyHtml(l.chars, l.rubies, (base, _, r) => `｜${base}《${r.ruby}》`, ch => isTcy(ch) ? `^${ch}^` : ch)).join('\n');
-  const tcy = ch => isTcy(ch) ? `<span style="text-combine-upright:all">${escapeHtml(ch)}</span>` : escapeHtml(ch);
-  const html = '<div style="font-family:\'游明朝\',\'Yu Mincho\',\'ヒラギノ明朝 ProN\',serif">' +
-    lines.map(l => `<p style="margin:0">${'　'.repeat(l.indent)}${
-      rubyHtml(l.chars, l.rubies, (base, ruby) => `<ruby>${base}<rt style="font-size:6pt">${ruby}</rt></ruby>`, tcy) || '　'}</p>`).join('') + '</div>';
-  return { plain, html };
-}
-
-// ---------- Word（.docx） ----------
-// 見本（sample.docx）と同じ、B5横・縦書き・1ページ20行。1行を1段落にし、字下げは全角スペース。
+// ---------- シナリオセンターWord（.docx） ----------
+// 見本（sample.docx）と同じ、B5横・縦書き・1ページ20行。表紙と人物表は1行を1段落にし、字下げは全角スペース。
+// 本文は段落ごとに流し込み、柱・ト書き・セリフのスタイルを当てる。
 // ノンブルは本文のフッターに { = PAGE*2 }（左）と { = PAGE*2-1 }（右）の計算フィールドで出す
 
 const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
@@ -262,7 +250,7 @@ const SC_NUMBERING = `${XML_HEAD}<w:numbering ${W_NS}><w:abstractNum w:abstractN
   '<w:rPr><w:rFonts w:ascii="ＭＳ 明朝" w:eastAsia="ＭＳ 明朝" w:hAnsi="ＭＳ 明朝" w:cs="ＭＳ 明朝" w:hint="eastAsia"/><w:sz w:val="24"/></w:rPr>' +
   '</w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>';
 
-function docxDocument(doc, sc) {
+function docxDocument(doc) {
   const lines = text => toFull(text || '').split('\n');
   const blanks = (n, pPr = '') => Array.from({ length: n }, () => ({ pPr }));
 
@@ -282,7 +270,7 @@ function docxDocument(doc, sc) {
   const chars = layoutCharacters(doc.characters).map(l => ({ body: docxLine(l) }));
   if (chars.length) chars[0].pPr = '<w:pageBreakBefore/>';
 
-  const body = sc ? docxScenarioBody(doc.blocks) : layoutBody(doc.blocks).map(l => ({ body: docxLine(l) }));
+  const body = docxScenarioBody(doc.blocks);
   if (!body.length) body.push({});
 
   const back = [
@@ -309,8 +297,7 @@ function docxNombreFooter() {
     '</w:p></w:ftr>';
 }
 
-// sc：シナリオセンター式（本文を流し込み、柱・ト書き・セリフのスタイルを当てる）
-function buildDocxFile(doc, sc = false) {
+function buildDocxFile(doc) {
   const T = 'application/vnd.openxmlformats-officedocument.wordprocessingml';
   const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   const rel = (id, type, target) => `<Relationship Id="${id}" Type="${R}/${type}" Target="${target}"/>`;
@@ -321,20 +308,20 @@ function buildDocxFile(doc, sc = false) {
       '<Default Extension="xml" ContentType="application/xml"/>' +
       part('document.xml', 'document.main') + part('styles.xml', 'styles') + part('settings.xml', 'settings') +
       part('footer1.xml', 'footer') + part('footer2.xml', 'footer') +
-      (sc ? part('numbering.xml', 'numbering') : '') + '</Types>'],
+      part('numbering.xml', 'numbering') + '</Types>'],
     ['_rels/.rels', `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       rel('rId1', 'officeDocument', 'word/document.xml') + '</Relationships>'],
     ['word/_rels/document.xml.rels', `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
       rel('rId1', 'styles', 'styles.xml') + rel('rId2', 'settings', 'settings.xml') +
       rel('rId3', 'footer', 'footer1.xml') + rel('rId4', 'footer', 'footer2.xml') +
-      (sc ? rel('rId5', 'numbering', 'numbering.xml') : '') + '</Relationships>'],
-    ['word/document.xml', docxDocument(doc, sc)],
+      rel('rId5', 'numbering', 'numbering.xml') + '</Relationships>'],
+    ['word/document.xml', docxDocument(doc)],
     ['word/styles.xml', `${XML_HEAD}<w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr>` +
       '<w:rFonts w:ascii="ＭＳ 明朝" w:eastAsia="ＭＳ 明朝" w:hAnsi="ＭＳ 明朝"/><w:kern w:val="2"/>' +
       '<w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="en-US" w:eastAsia="ja-JP" w:bidi="ar-SA"/>' +
       '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:widowControl w:val="0"/><w:jc w:val="both"/></w:pPr></w:pPrDefault>' +
       '</w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
-      (sc ? SC_STYLES : '') + '</w:styles>'],
+      SC_STYLES + '</w:styles>'],
     ['word/settings.xml', `${XML_HEAD}<w:settings ${W_NS}><w:defaultTabStop w:val="996"/>` +
       '<w:characterSpacingControl w:val="compressPunctuation"/><w:compat>' +
       '<w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>' +
@@ -342,7 +329,7 @@ function buildDocxFile(doc, sc = false) {
     ['word/footer1.xml', docxNombreFooter()],
     // 裏表紙のフッター。付けないと本文のノンブルを引き継いでしまう
     ['word/footer2.xml', `${XML_HEAD}<w:ftr ${W_NS}><w:p/></w:ftr>`],
-    ...(sc ? [['word/numbering.xml', SC_NUMBERING]] : []),
+    ['word/numbering.xml', SC_NUMBERING],
   ]);
   return new File([zip], `${fileBase(doc)}.docx`, { type: `${T}.document` });
 }
@@ -395,16 +382,7 @@ function plainText(doc) {
   return bodyParas(doc.blocks).map(p => parseRuby(toFull(p.text)).text).join('\n');
 }
 
-async function copyToClipboard(plain, html) {
-  if (html && window.ClipboardItem && navigator.clipboard?.write) {
-    try {
-      await navigator.clipboard.write([new ClipboardItem({
-        'text/plain': new Blob([plain], { type: 'text/plain' }),
-        'text/html': new Blob([html], { type: 'text/html' }),
-      })]);
-      return;
-    } catch { /* writeText にフォールバック */ }
-  }
+async function copyToClipboard(plain) {
   await navigator.clipboard.writeText(plain);
 }
 
